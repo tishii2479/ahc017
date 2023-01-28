@@ -110,20 +110,34 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
     let mut iter_count = 0;
 
     while time::elapsed_seconds() < time_limit {
-        let e = rnd::gen_range(0, input.m);
-        let to = rnd::gen_range(0, input.d);
+        let edge_index = rnd::gen_range(0, input.m);
+        let next = rnd::gen_range(0, input.d);
 
-        let prev = state.when[e];
-        state.when[e] = to;
+        let prev = state.when[edge_index];
+        let mut new_score = state.score;
 
-        let mut new_score = 0;
+        for s in &ps {
+            let dist = graph.dijkstra(*s, &state.when, prev);
+            let dist_sum: i64 = dist.iter().sum();
+            new_score -= dist_sum;
+        }
+        for s in &ps {
+            let dist = graph.dijkstra(*s, &state.when, next);
+            let dist_sum: i64 = dist.iter().sum();
+            new_score -= dist_sum;
+        }
 
-        for day in 0..input.d {
-            for s in &ps {
-                let dist = graph.dijkstra(*s, &state.when, day);
-                let dist_sum: i64 = dist.iter().sum();
-                new_score += dist_sum;
-            }
+        state.when[edge_index] = next;
+
+        for s in &ps {
+            let dist = graph.dijkstra(*s, &state.when, prev);
+            let dist_sum: i64 = dist.iter().sum();
+            new_score += dist_sum;
+        }
+        for s in &ps {
+            let dist = graph.dijkstra(*s, &state.when, next);
+            let dist_sum: i64 = dist.iter().sum();
+            new_score += dist_sum;
         }
 
         // let adopt = ((state.score - new_score) as f64 / temp).exp() > rnd::nextf();
@@ -131,7 +145,7 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
         if adopt {
             state.score = new_score;
         } else {
-            state.when[e] = prev;
+            state.when[edge_index] = prev;
         }
 
         iter_count += 1;
