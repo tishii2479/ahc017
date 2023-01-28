@@ -11,8 +11,8 @@ def execute_case(seed):
     input_file_path = f"tools/in/{seed:04}.txt"
     output_file_path = f"tools/out/{seed:04}.txt"
 
-    tester_path = "./tools/target/release/tester"
-    solver_cmd = "./target/release/sol"
+    tester_path = "./tools/target/release/vis"
+    solver_cmd = "./target/release/ahc017"
 
     with open(input_file_path, "r") as f:
         M, eps = f.readline().split()
@@ -113,34 +113,6 @@ def main():
                 print(" " * 7 + "nan", end=" ")
             else:
                 print(f"{int(score_sum / counter):10}", end=" ")
-        print()
-    print("-" * 97)
-    print()
-
-    # error table
-    print("|".rjust(10), end="")
-    for j in range(len(eps_div) - 1):
-        eps_low, eps_high = eps_div[j], eps_div[j + 1]
-        print(f"{eps_low}~{eps_high}".rjust(10), end=" ")
-    print()
-    print("-" * 97)
-
-    for i in range(len(M_div) - 1):
-        M_low, M_high = M_div[i], M_div[i + 1]
-        print(f"{M_low}~{M_high} |".rjust(10), end="")
-        for j in range(len(eps_div) - 1):
-            eps_low, eps_high = eps_div[j], eps_div[j + 1]
-
-            score_sum = 0
-            counter = 0
-            for score, seed, M, eps, err in scores:
-                if is_in(M, M_low, M_high) and is_in(eps, eps_low, eps_high):
-                    score_sum += err
-                    counter += 1
-            if counter == 0:
-                print(" " * 7 + "nan", end=" ")
-            else:
-                print(f"{score_sum / counter:10.2f}", end=" ")
         print()
     print("-" * 97)
     print()
