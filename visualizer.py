@@ -11,10 +11,10 @@ def visualize_score_progress(in_file: str, score_log_file: str) -> None:
 
     fig, ax_log = plt.subplots()
 
-    ax_log.plot(log_df.time, log_df.score)
+    ax_log.plot(log_df.time, log_df.score, label="score")
     ax_actual = ax_log.twinx()
-    ax_actual.plot(log_df.time, log_df.actual_score, c="red")
-
+    ax_actual.plot(log_df.time, log_df.actual_score, c="red", label="actual")
+    fig.legend()
     fig.savefig("out/score_progress.png")
     plt.show()
 

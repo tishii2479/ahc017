@@ -3,14 +3,14 @@ use std::{cmp::Reverse, collections::BinaryHeap};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Edge {
-    pub to: usize,
-    pub weight: i64,
-    pub index: usize,
+    to: usize,
+    weight: i64,
+    index: usize,
 }
 
 #[derive(Debug)]
 pub struct Graph {
-    pub adj: Vec<Vec<Edge>>,
+    adj: Vec<Vec<Edge>>,
 }
 
 impl Graph {
