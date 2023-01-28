@@ -7,7 +7,7 @@ use crate::{
 use std::fs::File;
 use std::io::Write;
 
-pub fn create_initial_state(input: &Input, graph: &Graph) -> State {
+pub fn create_initial_state(input: &Input, graph: &Graph, time_limit: f64) -> State {
     let mut state = State {
         when: vec![0; input.m],
         score: 0,
@@ -18,7 +18,7 @@ pub fn create_initial_state(input: &Input, graph: &Graph) -> State {
     state
 }
 
-pub fn create_initial_state2(input: &Input, graph: &Graph) -> State {
+pub fn create_initial_state2(input: &Input, graph: &Graph, time_limit: f64) -> State {
     let mut state = State {
         when: vec![0; input.m],
         score: 0,
@@ -41,7 +41,7 @@ pub fn create_initial_state2(input: &Input, graph: &Graph) -> State {
         let max_count = input.m / input.d;
         let mut count = 0;
 
-        while count < max_count {
+        while count < max_count && time::elapsed_seconds() < time_limit {
             let mut s = 0;
             while state.when[s] != 0 {
                 s = rnd::gen_range(0, input.m);
@@ -114,30 +114,16 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
         let next = rnd::gen_range(0, input.d);
 
         let prev = state.when[edge_index];
-        let mut new_score = state.score;
-
-        for s in &ps {
-            let dist = graph.dijkstra(*s, &state.when, prev);
-            let dist_sum: i64 = dist.iter().sum();
-            new_score -= dist_sum;
-        }
-        for s in &ps {
-            let dist = graph.dijkstra(*s, &state.when, next);
-            let dist_sum: i64 = dist.iter().sum();
-            new_score -= dist_sum;
-        }
-
         state.when[edge_index] = next;
 
-        for s in &ps {
-            let dist = graph.dijkstra(*s, &state.when, prev);
-            let dist_sum: i64 = dist.iter().sum();
-            new_score += dist_sum;
-        }
-        for s in &ps {
-            let dist = graph.dijkstra(*s, &state.when, next);
-            let dist_sum: i64 = dist.iter().sum();
-            new_score += dist_sum;
+        let mut new_score = 0;
+        // TODO: 差分計算
+        for day in 0..input.d {
+            for s in &ps {
+                let dist = graph.dijkstra(*s, &state.when, day);
+                let dist_sum: i64 = dist.iter().sum();
+                new_score += dist_sum;
+            }
         }
 
         // let adopt = ((state.score - new_score) as f64 / temp).exp() > rnd::nextf();

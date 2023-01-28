@@ -6,7 +6,7 @@ def visualize_score_progress(in_file: str, score_log_file: str) -> None:
     # score, actual_score, time
     # 実際のスコアと、評価値の推移をプロットする
     log_df = pd.read_csv(
-        score_log_file, header=None, names=["score", "actual_score", "time"]
+        score_log_file, header=None, names=["actual_score", "score", "time"]
     )
 
     fig, ax_log = plt.subplots()
