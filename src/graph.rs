@@ -3,18 +3,27 @@ use std::{cmp::Reverse, collections::BinaryHeap};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Edge {
-    to: usize,
-    weight: i64,
-    index: usize,
+    pub to: usize,
+    pub weight: i64,
+    pub index: usize,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct EdgeData {
+    pub v: usize,
+    pub u: usize,
+    pub weight: i64,
 }
 
 #[derive(Debug)]
 pub struct Graph {
-    adj: Vec<Vec<Edge>>,
+    pub adj: Vec<Vec<Edge>>,
+    pub pos: Vec<Pos>,
+    pub edges: Vec<EdgeData>,
 }
 
 impl Graph {
-    pub fn new(n: usize, edges: &Vec<(usize, usize, i64)>) -> Graph {
+    pub fn new(n: usize, edges: Vec<(usize, usize, i64)>, pos: Vec<(i64, i64)>) -> Graph {
         let mut adj = vec![vec![]; n];
 
         for (i, (u, v, w)) in edges.iter().enumerate() {
@@ -30,7 +39,16 @@ impl Graph {
             });
         }
 
-        Graph { adj }
+        let pos = pos.iter().map(|(x, y)| Pos { x: *x, y: *y }).collect();
+        let edges = edges
+            .iter()
+            .map(|(v, u, w)| EdgeData {
+                v: *v,
+                u: *u,
+                weight: *w,
+            })
+            .collect();
+        Graph { adj, pos, edges }
     }
 
     pub fn dijkstra(&self, start: usize, when: &Vec<usize>, day: usize) -> Vec<i64> {
