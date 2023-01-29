@@ -76,9 +76,7 @@ def main():
     for i in range(len(d_div)):
         data[i] /= counts[i]
 
-    score_df = pd.DataFrame(
-        data, index=d_div, columns=["average_score"], dtype={"average_score": int}
-    )
+    score_df = pd.DataFrame(data, index=d_div, columns=["average_score"])
     print(score_df)
 
 

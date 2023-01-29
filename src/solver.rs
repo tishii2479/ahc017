@@ -58,7 +58,7 @@ pub fn create_initial_state(input: &Input, graph: &Graph, time_limit: f64, debug
     for i in 1..input.n {
         for j in 0..i {
             let p = graph.get_path(i, j);
-            if p.len() <= 5 {
+            if p.0.len() <= 3 {
                 paths.push(p);
             }
         }
@@ -92,7 +92,7 @@ pub fn create_initial_state(input: &Input, graph: &Graph, time_limit: f64, debug
         progress = (time::elapsed_seconds() - start_time) / (time_limit - start_time);
         temp = start_temp.powf(1. - progress) * end_temp.powf(progress);
 
-        let path = &paths[rnd::gen_range(0, paths.len())];
+        let (path_edges, path_verticies) = &paths[rnd::gen_range(0, paths.len())];
         // eprintln!("{:?}", path);
         // TODO: 同じ頂点に繋がっている辺と同じものを高い確率で選ぶと良さそう
         let mut prev = vec![];
@@ -100,27 +100,26 @@ pub fn create_initial_state(input: &Input, graph: &Graph, time_limit: f64, debug
 
         let mut new_score = state.score;
 
-        for edge_index in path {
+        for edge_index in path_edges {
             prev.push(state.when[*edge_index]);
-            new_score -= calc_vertex_score(graph.edges[*edge_index].v, &graph, &state);
         }
-        new_score -= calc_vertex_score(graph.edges[*path.last().unwrap()].u, &graph, &state);
+        for v in path_verticies {
+            new_score -= calc_vertex_score(*v, &graph, &state);
+        }
 
-        for edge_index in path {
+        for edge_index in path_edges {
             state.update_when(*edge_index, next);
         }
-
-        for edge_index in path {
-            new_score += calc_vertex_score(graph.edges[*edge_index].v, &graph, &state);
+        for v in path_verticies {
+            new_score += calc_vertex_score(*v, &graph, &state);
         }
-        new_score += calc_vertex_score(graph.edges[*path.last().unwrap()].u, &graph, &state);
 
         let is_valid = *state.repair_counts.iter().max().unwrap() <= input.k;
         let adopt = (-(new_score - state.score) / temp).exp() > rnd::nextf();
         if adopt && is_valid {
             state.score = new_score;
         } else {
-            for (edge_index, prev) in zip(path, &prev) {
+            for (edge_index, prev) in zip(path_edges, &prev) {
                 state.update_when(*edge_index, *prev);
             }
         }

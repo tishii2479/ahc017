@@ -113,16 +113,19 @@ impl Graph {
         self.dijkstra(start, &when, day).0.iter().sum()
     }
 
-    pub fn get_path(&self, v: usize, u: usize) -> Vec<usize> {
-        // v -> u の最短路に通る辺のインデックスを返す
-        let mut ret = vec![];
+    pub fn get_path(&self, v: usize, u: usize) -> (Vec<usize>, Vec<usize>) {
+        // v -> u の最短路に通る辺のインデックス、通る頂点を返す
+        let mut edge_indicies = vec![];
+        let mut verticies = vec![u];
         let mut cur = u;
         while self.par_edge[v][cur] != INF as usize {
-            ret.push(self.par_edge[v][cur]);
+            edge_indicies.push(self.par_edge[v][cur]);
             cur = self.edges[self.par_edge[v][cur]].v + self.edges[self.par_edge[v][cur]].u - cur;
+            verticies.push(cur);
         }
-        ret.reverse();
-        ret
+        edge_indicies.reverse();
+        verticies.reverse();
+        (edge_indicies, verticies)
     }
 
     pub fn is_encased(&self, when: &Vec<usize>, v: usize) -> bool {

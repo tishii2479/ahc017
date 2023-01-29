@@ -34,6 +34,9 @@ fn main() {
     // 初期解の生成
     let mut state = create_initial_state(&input, &graph, 1., DEBUG);
 
+    // TODO: 連結にする
+    // connect_all_state();
+
     // 最適化
     optimize_state(&mut state, &input, &graph, TIME_LIMIT, DEBUG);
 
