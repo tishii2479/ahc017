@@ -1,8 +1,5 @@
-use crate::def::*;
-use std::{
-    cmp::Reverse,
-    collections::{BinaryHeap, VecDeque},
-};
+use crate::{def::*, util::VecSum};
+use std::{cmp::Reverse, collections::VecDeque};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Edge {
@@ -24,8 +21,7 @@ pub struct Graph {
     pub adj: Vec<Vec<Edge>>,
     pub pos: Vec<Pos>,
     pub edges: Vec<EdgeData>,
-    pub dist: Vec<Vec<i64>>,
-    pub dist_sum: Vec<i64>,
+    pub dist: Vec<VecSum>,
     pub par_edge: Vec<Vec<usize>>,
 }
 
@@ -63,31 +59,37 @@ impl Graph {
             pos,
             edges,
             dist: vec![],
-            dist_sum: vec![],
             par_edge: vec![],
         };
 
+        // TODO: いらない?
         // 前計算
         for v in 0..n {
-            let (d, p) = graph.dijkstra(v, &when, 0);
-            graph.dist_sum.push(d.iter().sum());
-            graph.dist.push(d);
-            graph.par_edge.push(p);
+            let mut dist = vec![INF; graph.adj.len()];
+            let mut par = vec![INF as usize; graph.adj.len()];
+            dist[v] = 0;
+            let mut dist = VecSum::new(dist);
+            graph.dijkstra(v, &when, 0, &mut dist, &mut par);
+            graph.dist.push(dist);
+            graph.par_edge.push(par);
         }
 
         graph
     }
 
-    pub fn dijkstra(&self, start: usize, when: &Vec<usize>, day: usize) -> (Vec<i64>, Vec<usize>) {
-        let mut dist = vec![INF; self.n];
-        let mut par = vec![INF as usize; self.n];
-
+    pub fn dijkstra(
+        &self,
+        start: usize,
+        when: &Vec<usize>,
+        day: usize,
+        dist: &mut VecSum,
+        par: &mut Vec<usize>,
+    ) {
         let mut q = VecDeque::new();
-        dist[start] = 0;
         q.push_back((Reverse(0), start));
 
         while let Some((Reverse(d), v)) = q.pop_front() {
-            if dist[v] < d {
+            if dist.vec[v] < d {
                 continue;
             }
             for &e in &self.adj[v] {
@@ -95,54 +97,37 @@ impl Graph {
                 if when[e.index] == day {
                     continue;
                 }
-                if dist[e.to] <= dist[v] + e.weight {
+                if dist.vec[e.to] <= dist.vec[v] + e.weight {
                     continue;
                 }
                 par[e.to] = e.index;
-                dist[e.to] = dist[v] + e.weight;
-                q.push_back((Reverse(dist[e.to]), e.to));
+                dist.set(e.to, dist.vec[v] + e.weight);
+                q.push_back((Reverse(dist.vec[e.to]), e.to));
             }
         }
-
-        (dist, par)
-    }
-
-    pub fn dijkstra2(&self, start: usize, when: &Vec<usize>, day: usize) -> (Vec<i64>, Vec<usize>) {
-        let mut dist = vec![INF; self.n];
-        let mut par = vec![INF as usize; self.n];
-
-        let mut heap = BinaryHeap::new();
-        dist[start] = 0;
-        heap.push((Reverse(0), start));
-
-        while let Some((Reverse(d), v)) = heap.pop() {
-            if dist[v] < d {
-                continue;
-            }
-            for &e in &self.adj[v] {
-                // その辺が使えない場合
-                if when[e.index] == day {
-                    continue;
-                }
-                if dist[e.to] <= dist[v] + e.weight {
-                    continue;
-                }
-                par[e.to] = e.index;
-                dist[e.to] = dist[v] + e.weight;
-                heap.push((Reverse(dist[e.to]), e.to));
-            }
-        }
-
-        (dist, par)
     }
 
     pub fn is_connected(&self, when: &Vec<usize>, day: usize) -> bool {
         // TODO: O(n)のアルゴリズムに書き換える
-        return *self.dijkstra(0, &when, day).0.iter().max().unwrap() < INF;
+        let mut dist = vec![INF; self.n];
+        dist[0] = 0;
+        let mut dist = VecSum::new(dist);
+        self.dijkstra(0, &when, day, &mut dist, &mut vec![INF as usize; self.n]);
+        *dist.vec.iter().max().unwrap() < INF
     }
 
     pub fn calc_dist_sum(&self, start: usize, when: &Vec<usize>, day: usize) -> i64 {
-        self.dijkstra(start, &when, day).0.iter().sum()
+        let mut dist = vec![INF; self.n];
+        dist[start] = 0;
+        let mut dist = VecSum::new(dist);
+        self.dijkstra(
+            start,
+            &when,
+            day,
+            &mut dist,
+            &mut vec![INF as usize; self.n],
+        );
+        dist.sum
     }
 
     pub fn get_path(&self, v: usize, u: usize) -> (Vec<usize>, Vec<usize>) {

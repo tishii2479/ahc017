@@ -71,3 +71,22 @@ where
     }
     return ret;
 }
+
+#[derive(Debug, Clone)]
+pub struct VecSum {
+    pub vec: Vec<i64>,
+    pub sum: i64,
+}
+
+impl VecSum {
+    pub fn new(vec: Vec<i64>) -> VecSum {
+        let sum = vec.iter().sum();
+        VecSum { vec, sum }
+    }
+
+    pub fn set(&mut self, idx: usize, value: i64) {
+        self.sum -= self.vec[idx];
+        self.vec[idx] = value;
+        self.sum += self.vec[idx];
+    }
+}
