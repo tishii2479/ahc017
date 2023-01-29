@@ -1,6 +1,8 @@
 import multiprocessing
 import subprocess
 
+import pandas as pd
+
 # mypy: ignore-errors
 
 CASE = 100
@@ -61,7 +63,23 @@ def main():
     print("=" * 100)
     scores.sort()
     ave = total / count
-    print(f"ave: {ave}")
+    print(f"ave: {ave:,.2f}")
+
+    d_div = [5, 10, 15, 20, 25]
+    data = [0] * len(d_div)
+    counts = [0] * len(d_div)
+    for (score, seed, N, M, D, K) in scores:
+        d_idx = min(D // 5 - 1, len(d_div) - 1)
+        data[d_idx] += score
+        counts[d_idx] += 1
+
+    for i in range(len(d_div)):
+        data[i] /= counts[i]
+
+    score_df = pd.DataFrame(
+        data, index=d_div, columns=["average_score"], dtype={"average_score": int}
+    )
+    print(score_df)
 
 
 if __name__ == "__main__":

@@ -10,15 +10,15 @@ pub struct Input {
     pub k: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct State {
     pub when: Vec<usize>,
     pub repair_counts: Vec<usize>,
-    pub score: i64,
+    pub score: f64,
 }
 
 impl State {
-    pub fn new(d: usize, when: Vec<usize>, score: i64) -> State {
+    pub fn new(d: usize, when: Vec<usize>, score: f64) -> State {
         let mut repair_counts = vec![0; d];
         for i in &when {
             if *i == INF as usize {
