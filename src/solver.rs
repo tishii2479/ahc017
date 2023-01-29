@@ -54,15 +54,18 @@ pub fn create_initial_state(input: &Input, graph: &Graph, time_limit: f64, debug
         score
     }
 
-    let mut paths = vec![];
-    for i in 1..input.n {
-        for j in 0..i {
-            let p = graph.get_path(i, j);
-            if p.0.len() <= 3 {
-                paths.push(p);
+    let paths = {
+        let mut paths = vec![];
+        for i in 1..input.n {
+            for j in 0..i {
+                let p = graph.get_path(i, j);
+                if p.0.len() <= 3 {
+                    paths.push(p);
+                }
             }
         }
-    }
+        paths
+    };
 
     let mut state = State::new(input.d, vec![INF as usize; input.m], 0.);
     for i in 0..input.m {
@@ -80,7 +83,7 @@ pub fn create_initial_state(input: &Input, graph: &Graph, time_limit: f64, debug
     let mut score_progress_file =
         File::create("out/create_initial_state_score_progress.csv").unwrap();
 
-    const LOOP_INTERVAL: usize = 100;
+    const LOOP_INTERVAL: usize = 10000;
     let start_temp: f64 = 100.;
     let end_temp: f64 = 0.1;
     let mut iter_count = 0;
@@ -95,14 +98,16 @@ pub fn create_initial_state(input: &Input, graph: &Graph, time_limit: f64, debug
         let (path_edges, path_verticies) = &paths[rnd::gen_range(0, paths.len())];
         // eprintln!("{:?}", path);
         // TODO: 同じ頂点に繋がっている辺と同じものを高い確率で選ぶと良さそう
-        let mut prev = vec![];
+        let prev = {
+            let mut ret = vec![];
+            for edge_index in path_edges {
+                ret.push(state.when[*edge_index]);
+            }
+            ret
+        };
         let next = rnd::gen_range(0, input.d);
 
         let mut new_score = state.score;
-
-        for edge_index in path_edges {
-            prev.push(state.when[*edge_index]);
-        }
         for v in path_verticies {
             new_score -= calc_vertex_score(*v, &graph, &state);
         }
@@ -151,6 +156,7 @@ pub fn optimize_state(
     time_limit: f64,
     debug: bool,
 ) {
+    eprintln!("before: {}", calc_actual_score_slow(&input, &graph, &state));
     let mut ps = vec![];
     for _ in 0..5 {
         ps.push(rnd::gen_range(0, input.n));

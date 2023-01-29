@@ -4,7 +4,6 @@ import uuid
 
 import matplotlib.pyplot as plt
 import pandas as pd
-from pandarallel import pandarallel
 
 
 def calc_actual_score(in_file: str, output: str) -> int:
@@ -27,16 +26,19 @@ def calc_actual_score(in_file: str, output: str) -> int:
     return score
 
 
-def visualize_score_progress(in_file: str, score_log_file: str) -> None:
+def visualize_score_progress(score_log: str) -> None:
     # score, time, actual_score
     # 実際のスコアと、評価値の推移をプロットする
     log_df = pd.read_csv(
-        score_log_file, header=None, names=["score", "time", "actual_score"]
+        f"out/{score_log}.csv", header=None, names=["score", "time", "actual_score"]
     )
     # log_df["actual_score"] = log_df.output.parallel_apply(
     #     lambda x: calc_actual_score(in_file, x)
     # )
-    log_df.actual_score = log_df.actual_score.apply(lambda x: min(1e9, x), axis=1)
+    if score_log == "optimize_state_score_progress":
+        log_df = log_df[50:]
+    print(log_df)
+    log_df.actual_score = log_df.actual_score.apply(lambda x: min(1e10, x))
 
     fig, ax_log = plt.subplots()
 
@@ -45,12 +47,10 @@ def visualize_score_progress(in_file: str, score_log_file: str) -> None:
 
     ax_actual.plot(log_df.time, log_df.actual_score, c="red", label="actual")
     fig.legend()
-    fig.savefig("out/create_initial_state_score_progress.png")
+    fig.savefig(f"out/{score_log}.png")
     plt.show()
 
 
 if __name__ == "__main__":
-    pandarallel.initialize()
-    visualize_score_progress(
-        "tools/in/0002.txt", "out/create_initial_state_score_progress.csv"
-    )
+    # visualize_score_progress("create_initial_state_score_progress")
+    visualize_score_progress("optimize_state_score_progress")

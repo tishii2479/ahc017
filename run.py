@@ -65,11 +65,11 @@ def main():
     ave = total / count
     print(f"ave: {ave:,.2f}")
 
-    d_div = [5, 10, 15, 20, 25]
+    d_div = range(5, 31, 3)
     data = [0] * len(d_div)
     counts = [0] * len(d_div)
     for (score, seed, N, M, D, K) in scores:
-        d_idx = min(D // 5 - 1, len(d_div) - 1)
+        d_idx = min(D // 3 - 1, len(d_div) - 1)
         data[d_idx] += score
         counts[d_idx] += 1
 
@@ -77,6 +77,7 @@ def main():
         data[i] /= counts[i]
 
     score_df = pd.DataFrame(data, index=d_div, columns=["average_score"])
+    score_df.average_score = score_df.average_score.apply(lambda x: int(x))
     print(score_df)
 
 
