@@ -106,7 +106,7 @@ impl Graph {
 
     pub fn is_connected(&self, when: &Vec<usize>, day: usize) -> bool {
         // TODO: O(n)のアルゴリズムに書き換える
-        return *self.dijkstra(0, &when, day).0.iter().max().unwrap() >= INF;
+        return *self.dijkstra(0, &when, day).0.iter().max().unwrap() < INF;
     }
 
     pub fn calc_dist_sum(&self, start: usize, when: &Vec<usize>, day: usize) -> i64 {
@@ -123,5 +123,16 @@ impl Graph {
         }
         ret.reverse();
         ret
+    }
+
+    pub fn is_encased(&self, when: &Vec<usize>, v: usize) -> bool {
+        let mut is_encased = true;
+        for e in &self.adj[v] {
+            // 2-辺連結なので、self.adj.len() >= 2
+            if when[self.adj[v][0].index] != when[e.index] || when[e.index] == INF as usize {
+                is_encased = false;
+            }
+        }
+        is_encased
     }
 }

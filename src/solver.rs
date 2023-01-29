@@ -1,28 +1,22 @@
 use crate::{
     def::*,
     graph::Graph,
-    util::{rnd, time},
+    util::{min_index, rnd, time},
 };
 
 use std::fs::File;
 use std::io::Write;
 
 pub fn create_initial_state(input: &Input, graph: &Graph, time_limit: f64) -> State {
-    let mut state = State {
-        when: vec![0; input.m],
-        score: 0,
-    };
+    let mut state = State::new(input.d, vec![0; input.m], 0);
     for i in 0..input.m {
-        state.when[i] = rnd::gen_range(0, input.d);
+        state.update_when(i, rnd::gen_range(0, input.d));
     }
     state
 }
 
 pub fn create_initial_state2(input: &Input, graph: &Graph, time_limit: f64) -> State {
-    let mut state = State {
-        when: vec![0; input.m],
-        score: 0,
-    };
+    let mut state = State::new(input.d, vec![0; input.m], 0);
 
     fn calc_cosine_similarity(to_pos: &Pos, from_pos: &Pos, to_pos2: &Pos, from_pos2: &Pos) -> f64 {
         let dy1 = to_pos.y - from_pos.y;
@@ -48,9 +42,9 @@ pub fn create_initial_state2(input: &Input, graph: &Graph, time_limit: f64) -> S
             }
 
             let start_edge = graph.edges[s];
-            state.when[s] = day;
-            if graph.is_connected(&state.when, day) {
-                state.when[s] = 0;
+            state.update_when(s, day);
+            if !graph.is_connected(&state.when, day) {
+                state.update_when(s, 0);
                 continue;
             }
             count += 1;
@@ -71,9 +65,9 @@ pub fn create_initial_state2(input: &Input, graph: &Graph, time_limit: f64) -> S
                         &graph.pos[v],
                     );
                     if sim >= 0.6 {
-                        state.when[e.index] = day;
-                        if graph.is_connected(&state.when, day) {
-                            state.when[e.index] = 0;
+                        state.update_when(e.index, day);
+                        if !graph.is_connected(&state.when, day) {
+                            state.update_when(e.index, 0);
                             continue;
                         }
                         v = next_v;
@@ -92,16 +86,96 @@ pub fn create_initial_state2(input: &Input, graph: &Graph, time_limit: f64) -> S
 }
 
 pub fn create_initial_state3(input: &Input, graph: &Graph, time_limit: f64) -> State {
-    let mut state = State {
-        when: vec![0; input.m],
-        score: 0,
-    };
+    let mut v_pairs = vec![];
+    for i in 1..input.n {
+        for j in 0..i {
+            v_pairs.push((i, j));
+        }
+    }
 
     let mut ps = vec![];
     for _ in 0..5 {
         ps.push(rnd::gen_range(0, input.n));
     }
 
+    let mut paths;
+    let mut path_when;
+    let mut state;
+
+    loop {
+        rnd::shuffle(&mut v_pairs);
+
+        paths = vec![];
+        path_when = vec![];
+
+        state = State::new(input.d, vec![INF as usize; input.m], 0);
+        for (v, u) in &v_pairs {
+            let path = graph.get_path(*v, *u);
+            let mut is_occupied = false;
+            for edge_index in &path {
+                if state.when[*edge_index] != INF as usize {
+                    is_occupied = true;
+                }
+            }
+            if is_occupied {
+                continue;
+            }
+
+            let day = min_index(&state.repair_counts);
+
+            let mut is_encased = false;
+            for edge_index in &path {
+                state.update_when(*edge_index, day);
+                if graph.is_encased(&state.when, graph.edges[*edge_index].u)
+                    || graph.is_encased(&state.when, graph.edges[*edge_index].v)
+                {
+                    is_encased = true;
+                }
+            }
+            if is_encased {
+                for edge_index in &path {
+                    state.update_when(*edge_index, INF as usize);
+                }
+                continue;
+            }
+            paths.push(path);
+            path_when.push(day);
+        }
+
+        for i in 0..input.m {
+            if state.when[i] == INF as usize {
+                let mut day = rnd::gen_range(0, input.d);
+                state.update_when(i, day);
+                while graph.is_encased(&state.when, graph.edges[i].u)
+                    || graph.is_encased(&state.when, graph.edges[i].v)
+                {
+                    day = rnd::gen_range(0, input.d);
+                    state.update_when(i, day);
+                }
+                paths.push(vec![i]);
+                path_when.push(day);
+            }
+        }
+
+        let mut is_connected = true;
+        for day in 0..input.d {
+            if !graph.is_connected(&state.when, day) {
+                is_connected = false;
+            }
+        }
+        state.score = 0;
+        for day in 0..input.d {
+            for s in &ps {
+                state.score += graph.calc_dist_sum(*s, &state.when, day);
+            }
+        }
+        eprintln!("{}, {}", is_connected, time::elapsed_seconds());
+        if is_connected || time::elapsed_seconds() >= 1. {
+            break;
+        }
+    }
+
+    state.score = 0;
     for day in 0..input.d {
         for s in &ps {
             state.score += graph.calc_dist_sum(*s, &state.when, day);
@@ -113,12 +187,17 @@ pub fn create_initial_state3(input: &Input, graph: &Graph, time_limit: f64) -> S
     const LOOP_INTERVAL: usize = 100;
     let mut iter_count = 0;
 
-    while time::elapsed_seconds() < time_limit {
-        let edge_index = rnd::gen_range(0, input.m);
-        let next = rnd::gen_range(0, input.d);
+    eprintln!("path_count: {}", paths.len());
 
-        let prev = state.when[edge_index];
-        state.when[edge_index] = next;
+    while time::elapsed_seconds() < time_limit {
+        let path_index = rnd::gen_range(0, paths.len());
+        let next = rnd::gen_range(0, input.d);
+        let path = &paths[path_index];
+        let prev = path_when[path_index];
+
+        for edge_index in path {
+            state.update_when(*edge_index, next);
+        }
 
         let mut new_score = 0;
         // TODO: 差分計算
@@ -131,14 +210,19 @@ pub fn create_initial_state3(input: &Input, graph: &Graph, time_limit: f64) -> S
         // let adopt = ((state.score - new_score) as f64 / temp).exp() > rnd::nextf();
         let adopt = new_score < state.score;
         if adopt {
+            // eprintln!("adopt: {}, {}", new_score, state.score);
             state.score = new_score;
+            path_when[path_index] = next;
         } else {
-            state.when[edge_index] = prev;
+            for edge_index in path {
+                state.update_when(*edge_index, prev);
+            }
         }
 
         iter_count += 1;
         if iter_count % LOOP_INTERVAL == 0 {
-            let actual_score = calc_actual_score_slow(&input, &graph, &state);
+            // let actual_score = calc_actual_score_slow(&input, &graph, &state);
+            let actual_score = -1;
             writeln!(
                 score_progress_file,
                 "{},{},{:.2}",
@@ -181,7 +265,7 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
         let next = rnd::gen_range(0, input.d);
 
         let prev = state.when[edge_index];
-        state.when[edge_index] = next;
+        state.update_when(edge_index, next);
 
         let mut new_score = 0;
         // TODO: 差分計算
@@ -196,7 +280,7 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
         if adopt {
             state.score = new_score;
         } else {
-            state.when[edge_index] = prev;
+            state.update_when(edge_index, prev);
         }
 
         iter_count += 1;

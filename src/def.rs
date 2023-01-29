@@ -8,13 +8,40 @@ pub struct Input {
     pub k: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct State {
     pub when: Vec<usize>,
+    pub repair_counts: Vec<usize>,
     pub score: i64,
 }
 
 impl State {
+    pub fn new(d: usize, when: Vec<usize>, score: i64) -> State {
+        let mut repair_counts = vec![0; d];
+        for i in &when {
+            if *i == INF as usize {
+                continue;
+            }
+            repair_counts[*i] += 1;
+        }
+
+        State {
+            when,
+            repair_counts,
+            score,
+        }
+    }
+
+    pub fn update_when(&mut self, edge_index: usize, day: usize) {
+        if self.when[edge_index] != INF as usize {
+            self.repair_counts[self.when[edge_index]] -= 1;
+        }
+        self.when[edge_index] = day;
+        if self.when[edge_index] != INF as usize {
+            self.repair_counts[self.when[edge_index]] += 1;
+        }
+    }
+
     pub fn output(&self) -> String {
         let mut ret = String::new();
         for e in &self.when {

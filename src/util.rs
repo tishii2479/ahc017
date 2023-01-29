@@ -25,6 +25,14 @@ pub mod rnd {
     pub fn gen_range(low: usize, high: usize) -> usize {
         (next() % (high - low)) + low
     }
+
+    #[allow(unused)]
+    pub fn shuffle<I>(vec: &mut Vec<I>) {
+        for i in 0..vec.len() {
+            let j = gen_range(0, vec.len());
+            vec.swap(i, j);
+        }
+    }
 }
 
 pub mod time {
@@ -48,4 +56,17 @@ pub mod time {
             t - START
         }
     }
+}
+
+pub fn min_index<I>(vec: &Vec<I>) -> usize
+where
+    I: Ord,
+{
+    let mut ret = 0;
+    for i in 0..vec.len() {
+        if vec[i] < vec[ret] {
+            ret = i;
+        }
+    }
+    return ret;
 }
