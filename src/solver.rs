@@ -8,9 +8,13 @@ use std::fs::File;
 use std::io::Write;
 
 pub fn create_initial_state(input: &Input, graph: &Graph, time_limit: f64) -> State {
-    let mut state = State::new(input.d, vec![0; input.m], 0);
+    let mut state = State::new(input.d, vec![INF as usize; input.m], 0);
     for i in 0..input.m {
-        state.update_when(i, rnd::gen_range(0, input.d));
+        let mut day = rnd::gen_range(0, input.d);
+        while state.repair_counts[day] >= input.k {
+            day = rnd::gen_range(0, input.d);
+        }
+        state.update_when(i, day);
     }
     state
 }
@@ -202,21 +206,23 @@ pub fn create_initial_state3(input: &Input, graph: &Graph, time_limit: f64) -> S
         let path = &paths[path_index];
         let prev = path_when[path_index];
 
+        let mut new_score = state.score;
+
+        for s in &ps {
+            new_score -= graph.calc_dist_sum(*s, &state.when, prev);
+            new_score -= graph.calc_dist_sum(*s, &state.when, next);
+        }
         for edge_index in path {
             state.update_when(*edge_index, next);
         }
-
-        let mut new_score = 0;
-        // TODO: 差分計算
-        for day in 0..input.d {
-            for s in &ps {
-                new_score += graph.calc_dist_sum(*s, &state.when, day);
-            }
+        for s in &ps {
+            new_score += graph.calc_dist_sum(*s, &state.when, prev);
+            new_score += graph.calc_dist_sum(*s, &state.when, next);
         }
 
         // let adopt = ((state.score - new_score) as f64 / temp).exp() > rnd::nextf();
-        let adopt =
-            new_score < state.score && *state.repair_counts.iter().max().unwrap() <= input.k;
+        let is_valid = *state.repair_counts.iter().max().unwrap() <= input.k;
+        let adopt = new_score < state.score && is_valid;
         if adopt {
             // eprintln!("adopt: {}, {}", new_score, state.score);
             state.score = new_score;
@@ -229,8 +235,8 @@ pub fn create_initial_state3(input: &Input, graph: &Graph, time_limit: f64) -> S
 
         iter_count += 1;
         if iter_count % LOOP_INTERVAL == 0 {
-            let actual_score = calc_actual_score_slow(&input, &graph, &state);
-            // let actual_score = -1;
+            // let actual_score = calc_actual_score_slow(&input, &graph, &state);
+            let actual_score = -1;
             writeln!(
                 score_progress_file,
                 "{},{},{:.2}",
@@ -272,19 +278,22 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
         let edge_index = rnd::gen_range(0, input.m);
         let next = rnd::gen_range(0, input.d);
 
+        let mut new_score = state.score;
         let prev = state.when[edge_index];
-        state.update_when(edge_index, next);
 
-        let mut new_score = 0;
-        // TODO: 差分計算
-        for day in 0..input.d {
-            for s in &ps {
-                new_score += graph.calc_dist_sum(*s, &state.when, day);
-            }
+        for s in &ps {
+            new_score -= graph.calc_dist_sum(*s, &state.when, prev);
+            new_score -= graph.calc_dist_sum(*s, &state.when, next);
+        }
+        state.update_when(edge_index, next);
+        for s in &ps {
+            new_score += graph.calc_dist_sum(*s, &state.when, prev);
+            new_score += graph.calc_dist_sum(*s, &state.when, next);
         }
 
         // let adopt = ((state.score - new_score) as f64 / temp).exp() > rnd::nextf();
-        let adopt = new_score < state.score;
+        let is_valid = *state.repair_counts.iter().max().unwrap() <= input.k;
+        let adopt = new_score < state.score && is_valid;
         if adopt {
             state.score = new_score;
         } else {
