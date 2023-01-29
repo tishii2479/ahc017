@@ -86,10 +86,12 @@ pub fn create_initial_state2(input: &Input, graph: &Graph, time_limit: f64) -> S
 }
 
 pub fn create_initial_state3(input: &Input, graph: &Graph, time_limit: f64) -> State {
-    let mut v_pairs = vec![];
+    let mut paths = vec![];
+    let mut path_when = vec![];
     for i in 1..input.n {
         for j in 0..i {
-            v_pairs.push((i, j));
+            paths.push(graph.get_path(i, j));
+            path_when.push(INF as usize);
         }
     }
 
@@ -98,21 +100,19 @@ pub fn create_initial_state3(input: &Input, graph: &Graph, time_limit: f64) -> S
         ps.push(rnd::gen_range(0, input.n));
     }
 
-    let mut paths;
-    let mut path_when;
+    let mut use_path_indices: Vec<usize>;
     let mut state;
 
     loop {
-        rnd::shuffle(&mut v_pairs);
+        // paths.sort_by(|a, b| b.len().partial_cmp(&a.len()).unwrap());
+        rnd::shuffle(&mut paths);
 
-        paths = vec![];
-        path_when = vec![];
+        use_path_indices = vec![];
 
         state = State::new(input.d, vec![INF as usize; input.m], 0);
-        for (v, u) in &v_pairs {
-            let path = graph.get_path(*v, *u);
+        for (path_index, path) in paths.iter().enumerate() {
             let mut is_occupied = false;
-            for edge_index in &path {
+            for edge_index in path {
                 if state.when[*edge_index] != INF as usize {
                     is_occupied = true;
                 }
@@ -124,7 +124,7 @@ pub fn create_initial_state3(input: &Input, graph: &Graph, time_limit: f64) -> S
             let day = min_index(&state.repair_counts);
 
             let mut is_encased = false;
-            for edge_index in &path {
+            for edge_index in path {
                 state.update_when(*edge_index, day);
                 if graph.is_encased(&state.when, graph.edges[*edge_index].u)
                     || graph.is_encased(&state.when, graph.edges[*edge_index].v)
@@ -133,27 +133,31 @@ pub fn create_initial_state3(input: &Input, graph: &Graph, time_limit: f64) -> S
                 }
             }
             if is_encased {
-                for edge_index in &path {
+                for edge_index in path {
                     state.update_when(*edge_index, INF as usize);
                 }
                 continue;
             }
-            paths.push(path);
-            path_when.push(day);
+            use_path_indices.push(path_index);
+            path_when[path_index] = day;
         }
 
-        for i in 0..input.m {
-            if state.when[i] == INF as usize {
+        for (path_index, path) in paths.iter().enumerate() {
+            if path.len() != 1 {
+                continue;
+            }
+            let edge_index = path[0];
+            if state.when[edge_index] == INF as usize {
                 let mut day = rnd::gen_range(0, input.d);
-                state.update_when(i, day);
-                while graph.is_encased(&state.when, graph.edges[i].u)
-                    || graph.is_encased(&state.when, graph.edges[i].v)
+                state.update_when(edge_index, day);
+                while graph.is_encased(&state.when, graph.edges[edge_index].u)
+                    || graph.is_encased(&state.when, graph.edges[edge_index].v)
                 {
                     day = rnd::gen_range(0, input.d);
-                    state.update_when(i, day);
+                    state.update_when(edge_index, day);
                 }
-                paths.push(vec![i]);
-                path_when.push(day);
+                use_path_indices.push(path_index);
+                path_when[path_index] = day;
             }
         }
 
@@ -169,7 +173,12 @@ pub fn create_initial_state3(input: &Input, graph: &Graph, time_limit: f64) -> S
                 state.score += graph.calc_dist_sum(*s, &state.when, day);
             }
         }
-        eprintln!("{}, {}", is_connected, time::elapsed_seconds());
+        eprintln!(
+            "{}, {}, {}",
+            use_path_indices.len(),
+            is_connected,
+            time::elapsed_seconds()
+        );
         if is_connected || time::elapsed_seconds() >= 1. {
             break;
         }
@@ -187,10 +196,8 @@ pub fn create_initial_state3(input: &Input, graph: &Graph, time_limit: f64) -> S
     const LOOP_INTERVAL: usize = 100;
     let mut iter_count = 0;
 
-    eprintln!("path_count: {}", paths.len());
-
     while time::elapsed_seconds() < time_limit {
-        let path_index = rnd::gen_range(0, paths.len());
+        let path_index = use_path_indices[rnd::gen_range(0, use_path_indices.len())];
         let next = rnd::gen_range(0, input.d);
         let path = &paths[path_index];
         let prev = path_when[path_index];
@@ -208,7 +215,8 @@ pub fn create_initial_state3(input: &Input, graph: &Graph, time_limit: f64) -> S
         }
 
         // let adopt = ((state.score - new_score) as f64 / temp).exp() > rnd::nextf();
-        let adopt = new_score < state.score;
+        let adopt =
+            new_score < state.score && *state.repair_counts.iter().max().unwrap() <= input.k;
         if adopt {
             // eprintln!("adopt: {}, {}", new_score, state.score);
             state.score = new_score;
@@ -221,8 +229,8 @@ pub fn create_initial_state3(input: &Input, graph: &Graph, time_limit: f64) -> S
 
         iter_count += 1;
         if iter_count % LOOP_INTERVAL == 0 {
-            // let actual_score = calc_actual_score_slow(&input, &graph, &state);
-            let actual_score = -1;
+            let actual_score = calc_actual_score_slow(&input, &graph, &state);
+            // let actual_score = -1;
             writeln!(
                 score_progress_file,
                 "{},{},{:.2}",

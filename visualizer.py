@@ -20,4 +20,4 @@ def visualize_score_progress(in_file: str, score_log_file: str) -> None:
 
 
 if __name__ == "__main__":
-    visualize_score_progress("tools/in/0000.txt", "out/score_progress.csv")
+    visualize_score_progress("tools/in/0002.txt", "out/score_progress.csv")
