@@ -56,3 +56,11 @@ pub struct Pos {
     pub x: i64,
     pub y: i64,
 }
+
+impl Pos {
+    pub fn dist(&self, to: &Pos) -> i64 {
+        let dy = to.y - self.y;
+        let dx = to.x - self.x;
+        dy * dy + dx * dx
+    }
+}

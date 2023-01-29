@@ -157,10 +157,14 @@ pub fn optimize_state(
     debug: bool,
 ) {
     eprintln!("before: {}", calc_actual_score_slow(&input, &graph, &state));
-    let mut ps = vec![];
-    for _ in 0..5 {
-        ps.push(rnd::gen_range(0, input.n));
-    }
+    let ps = vec![
+        graph.find_closest_point(&Pos { x: 250, y: 250 }),
+        graph.find_closest_point(&Pos { x: 250, y: 750 }),
+        // graph.find_closest_point(&Pos { x: 500, y: 500 }),
+        graph.find_closest_point(&Pos { x: 750, y: 250 }),
+        graph.find_closest_point(&Pos { x: 750, y: 750 }),
+    ];
+    // eprintln!("{:?}", ps);
 
     state.score = 0.;
     for day in 0..input.d {
@@ -182,6 +186,7 @@ pub fn optimize_state(
 
         let mut new_score = state.score;
 
+        // TODO: キャッシュする
         for s in &ps {
             new_score -= graph.calc_dist_sum(*s, &state.when, prev) as f64;
             new_score -= graph.calc_dist_sum(*s, &state.when, next) as f64;
@@ -192,7 +197,6 @@ pub fn optimize_state(
             new_score += graph.calc_dist_sum(*s, &state.when, next) as f64;
         }
 
-        // let adopt = ((state.score - new_score) as f64 / temp).exp() > rnd::nextf();
         let is_valid = *state.repair_counts.iter().max().unwrap() <= input.k;
         let adopt = new_score < state.score && is_valid;
         if adopt {

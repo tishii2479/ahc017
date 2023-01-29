@@ -82,35 +82,6 @@ impl Graph {
         let mut dist = vec![INF; self.n];
         let mut par = vec![INF as usize; self.n];
 
-        let mut heap = BinaryHeap::new();
-        dist[start] = 0;
-        heap.push((Reverse(0), start));
-
-        while let Some((Reverse(d), v)) = heap.pop() {
-            if dist[v] < d {
-                continue;
-            }
-            for &e in &self.adj[v] {
-                // その辺が使えない場合
-                if when[e.index] == day {
-                    continue;
-                }
-                if dist[e.to] <= dist[v] + e.weight {
-                    continue;
-                }
-                par[e.to] = e.index;
-                dist[e.to] = dist[v] + e.weight;
-                heap.push((Reverse(dist[e.to]), e.to));
-            }
-        }
-
-        (dist, par)
-    }
-
-    pub fn dijkstra2(&self, start: usize, when: &Vec<usize>, day: usize) -> (Vec<i64>, Vec<usize>) {
-        let mut dist = vec![INF; self.n];
-        let mut par = vec![INF as usize; self.n];
-
         let mut q = VecDeque::new();
         dist[start] = 0;
         q.push_back((Reverse(0), start));
@@ -130,6 +101,35 @@ impl Graph {
                 par[e.to] = e.index;
                 dist[e.to] = dist[v] + e.weight;
                 q.push_back((Reverse(dist[e.to]), e.to));
+            }
+        }
+
+        (dist, par)
+    }
+
+    pub fn dijkstra2(&self, start: usize, when: &Vec<usize>, day: usize) -> (Vec<i64>, Vec<usize>) {
+        let mut dist = vec![INF; self.n];
+        let mut par = vec![INF as usize; self.n];
+
+        let mut heap = BinaryHeap::new();
+        dist[start] = 0;
+        heap.push((Reverse(0), start));
+
+        while let Some((Reverse(d), v)) = heap.pop() {
+            if dist[v] < d {
+                continue;
+            }
+            for &e in &self.adj[v] {
+                // その辺が使えない場合
+                if when[e.index] == day {
+                    continue;
+                }
+                if dist[e.to] <= dist[v] + e.weight {
+                    continue;
+                }
+                par[e.to] = e.index;
+                dist[e.to] = dist[v] + e.weight;
+                heap.push((Reverse(dist[e.to]), e.to));
             }
         }
 
@@ -169,5 +169,18 @@ impl Graph {
             }
         }
         is_encased
+    }
+
+    pub fn find_closest_point(&self, anchor: &Pos) -> usize {
+        let mut min_dist = self.pos[0].dist(&anchor);
+        let mut min_point = 0;
+        for (i, p) in self.pos.iter().enumerate() {
+            if p.dist(&anchor) < min_dist {
+                min_dist = p.dist(&anchor);
+                min_point = i;
+            }
+        }
+
+        min_point
     }
 }
