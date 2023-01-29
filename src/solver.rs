@@ -4,8 +4,8 @@ use crate::{
     util::{rnd, time},
 };
 
-use std::fs::File;
 use std::io::Write;
+use std::{fs::File, iter::zip};
 
 #[allow(unused_variables, unused)]
 
@@ -54,6 +54,16 @@ pub fn create_initial_state(input: &Input, graph: &Graph, time_limit: f64, debug
         score
     }
 
+    let mut paths = vec![];
+    for i in 1..input.n {
+        for j in 0..i {
+            let p = graph.get_path(i, j);
+            if p.len() <= 5 {
+                paths.push(p);
+            }
+        }
+    }
+
     let mut state = State::new(input.d, vec![INF as usize; input.m], 0.);
     for i in 0..input.m {
         let mut day = rnd::gen_range(0, input.d);
@@ -82,27 +92,37 @@ pub fn create_initial_state(input: &Input, graph: &Graph, time_limit: f64, debug
         progress = (time::elapsed_seconds() - start_time) / (time_limit - start_time);
         temp = start_temp.powf(1. - progress) * end_temp.powf(progress);
 
-        let edge_index = rnd::gen_range(0, input.m);
+        let path = &paths[rnd::gen_range(0, paths.len())];
+        // eprintln!("{:?}", path);
         // TODO: 同じ頂点に繋がっている辺と同じものを高い確率で選ぶと良さそう
-        let prev = state.when[edge_index];
+        let mut prev = vec![];
         let next = rnd::gen_range(0, input.d);
 
         let mut new_score = state.score;
 
-        new_score -= calc_vertex_score(graph.edges[edge_index].v, &graph, &state);
-        new_score -= calc_vertex_score(graph.edges[edge_index].u, &graph, &state);
+        for edge_index in path {
+            prev.push(state.when[*edge_index]);
+            new_score -= calc_vertex_score(graph.edges[*edge_index].v, &graph, &state);
+        }
+        new_score -= calc_vertex_score(graph.edges[*path.last().unwrap()].u, &graph, &state);
 
-        state.update_when(edge_index, next);
+        for edge_index in path {
+            state.update_when(*edge_index, next);
+        }
 
-        new_score += calc_vertex_score(graph.edges[edge_index].v, &graph, &state);
-        new_score += calc_vertex_score(graph.edges[edge_index].u, &graph, &state);
+        for edge_index in path {
+            new_score += calc_vertex_score(graph.edges[*edge_index].v, &graph, &state);
+        }
+        new_score += calc_vertex_score(graph.edges[*path.last().unwrap()].u, &graph, &state);
 
         let is_valid = *state.repair_counts.iter().max().unwrap() <= input.k;
         let adopt = (-(new_score - state.score) / temp).exp() > rnd::nextf();
         if adopt && is_valid {
             state.score = new_score;
         } else {
-            state.update_when(edge_index, prev);
+            for (edge_index, prev) in zip(path, &prev) {
+                state.update_when(*edge_index, *prev);
+            }
         }
 
         iter_count += 1;
