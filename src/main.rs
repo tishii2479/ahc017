@@ -26,7 +26,7 @@ fn read_input() -> (Input, Graph) {
 
 fn main() {
     time::start_clock();
-    const TIME_LIMIT: f64 = 100.8;
+    const TIME_LIMIT: f64 = 10.8;
 
     let (input, graph) = read_input();
 
