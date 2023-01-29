@@ -58,6 +58,7 @@ pub mod time {
     }
 }
 
+#[allow(unused)]
 pub fn min_index<I>(vec: &Vec<I>) -> usize
 where
     I: Ord,

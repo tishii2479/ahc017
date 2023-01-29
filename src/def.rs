@@ -1,5 +1,3 @@
-use crate::graph::Graph;
-
 pub const INF: i64 = 1_000_000_000;
 
 #[derive(Debug)]
@@ -49,7 +47,6 @@ impl State {
         for e in &self.when {
             ret += &format!("{} ", e + 1);
         }
-        ret += "\n";
         ret
     }
 }

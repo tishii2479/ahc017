@@ -26,15 +26,16 @@ fn read_input() -> (Input, Graph) {
 
 fn main() {
     time::start_clock();
-    const TIME_LIMIT: f64 = 500.8;
+    const DEBUG: bool = false;
+    const TIME_LIMIT: f64 = 3.8;
 
     let (input, graph) = read_input();
 
     // 初期解の生成
-    let mut state = create_initial_state(&input, &graph, 200.);
+    let mut state = create_initial_state(&input, &graph, 1., DEBUG);
 
     // 最適化
-    optimize_state(&mut state, &input, &graph, TIME_LIMIT);
+    optimize_state(&mut state, &input, &graph, TIME_LIMIT, DEBUG);
 
     let output = state.output();
     println!("{}", output);

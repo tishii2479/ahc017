@@ -7,7 +7,26 @@ use crate::{
 use std::fs::File;
 use std::io::Write;
 
-pub fn create_initial_state(input: &Input, graph: &Graph, time_limit: f64) -> State {
+#[allow(unused_variables, unused)]
+
+pub fn create_random_initial_state(
+    input: &Input,
+    graph: &Graph,
+    time_limit: f64,
+    debug: bool,
+) -> State {
+    let mut state = State::new(input.d, vec![INF as usize; input.m], 0.);
+    for i in 0..input.m {
+        let mut day = rnd::gen_range(0, input.d);
+        while state.repair_counts[day] >= input.k {
+            day = rnd::gen_range(0, input.d);
+        }
+        state.update_when(i, day);
+    }
+    state
+}
+
+pub fn create_initial_state(input: &Input, graph: &Graph, time_limit: f64, debug: bool) -> State {
     fn calc_vertex_score(v: usize, graph: &Graph, state: &State) -> f64 {
         let mut score = 0.;
         for e1 in &graph.adj[v] {
@@ -65,10 +84,10 @@ pub fn create_initial_state(input: &Input, graph: &Graph, time_limit: f64) -> St
 
         let edge_index = rnd::gen_range(0, input.m);
         // TODO: 同じ頂点に繋がっている辺と同じものを高い確率で選ぶと良さそう
+        let prev = state.when[edge_index];
         let next = rnd::gen_range(0, input.d);
 
         let mut new_score = state.score;
-        let prev = state.when[edge_index];
 
         new_score -= calc_vertex_score(graph.edges[edge_index].v, &graph, &state);
         new_score -= calc_vertex_score(graph.edges[edge_index].u, &graph, &state);
@@ -80,7 +99,6 @@ pub fn create_initial_state(input: &Input, graph: &Graph, time_limit: f64) -> St
 
         let is_valid = *state.repair_counts.iter().max().unwrap() <= input.k;
         let adopt = (-(new_score - state.score) / temp).exp() > rnd::nextf();
-        // let adopt = new_score < state.score;
         if adopt && is_valid {
             state.score = new_score;
         } else {
@@ -89,29 +107,31 @@ pub fn create_initial_state(input: &Input, graph: &Graph, time_limit: f64) -> St
 
         iter_count += 1;
         if iter_count % LOOP_INTERVAL == 0 {
-            let actual_score = calc_actual_score_slow(&input, &graph, &state);
-            // let actual_score = -1;
-            writeln!(
-                score_progress_file,
-                "{}, {}, {:.2}",
-                actual_score,
-                state.score,
-                time::elapsed_seconds()
-            )
-            .unwrap();
-            eprintln!(
-                "{}, {}, {:.2}",
-                actual_score,
-                state.score,
-                time::elapsed_seconds()
-            );
+            if debug {
+                writeln!(
+                    score_progress_file,
+                    "{},{:.2},{}",
+                    state.score,
+                    time::elapsed_seconds(),
+                    calc_actual_score_slow(&input, &graph, &state),
+                )
+                .unwrap();
+            }
+            eprintln!("{}, {:.2}", state.score, time::elapsed_seconds());
         }
     }
+    eprintln!("[create_initial_state] iter_count: {}", iter_count);
 
     state
 }
 
-pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limit: f64) {
+pub fn optimize_state(
+    state: &mut State,
+    input: &Input,
+    graph: &Graph,
+    time_limit: f64,
+    debug: bool,
+) {
     let mut ps = vec![];
     for _ in 0..5 {
         ps.push(rnd::gen_range(0, input.n));
@@ -132,12 +152,11 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
     while time::elapsed_seconds() < time_limit {
         let edge_index = rnd::gen_range(0, input.m);
         // TODO: 同じ頂点に繋がっている辺と同じものを高い確率で選ぶと良さそう
+        let prev = state.when[edge_index];
         let next = rnd::gen_range(0, input.d);
 
         let mut new_score = state.score;
-        let prev = state.when[edge_index];
 
-        // TODO: キャッシュする
         for s in &ps {
             new_score -= graph.calc_dist_sum(*s, &state.when, prev) as f64;
             new_score -= graph.calc_dist_sum(*s, &state.when, next) as f64;
@@ -159,24 +178,21 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
 
         iter_count += 1;
         if iter_count % LOOP_INTERVAL == 0 {
-            // let actual_score = calc_actual_score_slow(&input, &graph, &state);
-            let actual_score = -1;
-            writeln!(
-                score_progress_file,
-                "{}, {}, {:.2}",
-                actual_score,
-                state.score,
-                time::elapsed_seconds()
-            )
-            .unwrap();
-            eprintln!(
-                "{}, {}, {:.2}",
-                actual_score,
-                state.score,
-                time::elapsed_seconds()
-            );
+            if debug {
+                writeln!(
+                    score_progress_file,
+                    "{},{:.2},{}",
+                    state.score,
+                    time::elapsed_seconds(),
+                    calc_actual_score_slow(&input, &graph, &state),
+                )
+                .unwrap();
+            }
+            eprintln!("{} {:.2}", state.score, time::elapsed_seconds());
         }
     }
+
+    eprintln!("[optimize_state] iter_count: {}", iter_count);
 }
 
 pub fn calc_actual_score_slow(input: &Input, graph: &Graph, state: &State) -> i64 {
