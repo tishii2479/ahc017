@@ -1,4 +1,5 @@
-pub const INF: i64 = 1_000_000_000;
+pub const PENALTY: i64 = 1_000_000_000;
+pub const INF: i64 = 100_000_000_000_000;
 
 #[derive(Debug)]
 pub struct Input {

@@ -38,7 +38,7 @@ fn main() {
     // connect_all_state();
 
     // 最適化
-    optimize_state(&mut state, &input, &graph, TIME_LIMIT, DEBUG);
+    optimize_state2(&mut state, &input, &graph, TIME_LIMIT, DEBUG);
 
     let output = state.output();
     println!("{}", output);

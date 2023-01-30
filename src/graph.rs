@@ -13,6 +13,13 @@ pub struct EdgeData {
     pub v: usize,
     pub u: usize,
     pub weight: i64,
+    pub index: usize,
+}
+
+impl EdgeData {
+    pub fn has_vertex(&self, v: usize) -> bool {
+        self.v == v || self.u == v
+    }
 }
 
 #[derive(Debug)]
@@ -45,10 +52,12 @@ impl Graph {
         let pos = pos.iter().map(|(x, y)| Pos { x: *x, y: *y }).collect();
         let edges: Vec<EdgeData> = edges
             .iter()
-            .map(|(v, u, w)| EdgeData {
+            .enumerate()
+            .map(|(i, (v, u, w))| EdgeData {
                 v: *v,
                 u: *u,
                 weight: *w,
+                index: i,
             })
             .collect();
 
@@ -66,12 +75,12 @@ impl Graph {
         // 前計算
         for v in 0..n {
             let mut dist = vec![INF; graph.adj.len()];
-            let mut par = vec![INF as usize; graph.adj.len()];
+            let mut par_edge = vec![INF as usize; graph.adj.len()];
             dist[v] = 0;
             let mut dist = VecSum::new(dist);
-            graph.dijkstra(v, &when, 0, &mut dist, &mut par);
+            graph.dijkstra(v, &when, 0, &mut dist, &mut par_edge);
             graph.dist.push(dist);
-            graph.par_edge.push(par);
+            graph.par_edge.push(par_edge);
         }
 
         graph
@@ -83,7 +92,7 @@ impl Graph {
         when: &Vec<usize>,
         day: usize,
         dist: &mut VecSum,
-        par: &mut Vec<usize>,
+        par_edge: &mut Vec<usize>,
     ) {
         let mut q = VecDeque::new();
         q.push_back((Reverse(0), start));
@@ -94,11 +103,15 @@ impl Graph {
             }
             for &e in &self.adj[v] {
                 // その辺が使えない場合
-                let weight = if when[e.index] == day { INF } else { e.weight };
+                let weight = if when[e.index] == day {
+                    PENALTY
+                } else {
+                    e.weight
+                };
                 if dist.vec[e.to] <= dist.vec[v] + weight {
                     continue;
                 }
-                par[e.to] = e.index;
+                par_edge[e.to] = e.index;
                 dist.set(e.to, dist.vec[v] + weight);
                 q.push_back((Reverse(dist.vec[e.to]), e.to));
             }
