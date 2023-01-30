@@ -27,7 +27,7 @@ fn read_input() -> (Input, Graph) {
 fn main() {
     time::start_clock();
     const DEBUG: bool = false;
-    const TIME_LIMIT: f64 = 3.8;
+    const TIME_LIMIT: f64 = 100.8;
 
     let (input, graph) = read_input();
 
@@ -38,7 +38,7 @@ fn main() {
     // connect_all_state();
 
     // 最適化
-    optimize_state2(&mut state, &input, &graph, TIME_LIMIT, DEBUG);
+    optimize_state(&mut state, &input, &graph, TIME_LIMIT, true);
 
     let output = state.output();
     println!("{}", output);

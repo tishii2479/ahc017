@@ -175,3 +175,78 @@ pub fn create_initial_state3(input: &Input, graph: &Graph, time_limit: f64) -> S
 
     state
 }
+
+pub fn optimize_state_slow(
+    state: &mut State,
+    input: &Input,
+    graph: &Graph,
+    time_limit: f64,
+    debug: bool,
+) {
+    eprintln!("before: {}", calc_actual_score_slow(&input, &graph, &state));
+    let ps = vec![
+        graph.find_closest_point(&Pos { x: 250, y: 250 }),
+        graph.find_closest_point(&Pos { x: 250, y: 750 }),
+        // graph.find_closest_point(&Pos { x: 500, y: 500 }),
+        graph.find_closest_point(&Pos { x: 750, y: 250 }),
+        graph.find_closest_point(&Pos { x: 750, y: 750 }),
+    ];
+    // eprintln!("{:?}", ps);
+
+    state.score = 0.;
+    for day in 0..input.d {
+        for s in &ps {
+            state.score += graph.calc_dist_sum(*s, &state.when, day) as f64;
+        }
+    }
+
+    let mut score_progress_file = File::create("out/optimize_state_score_progress.csv").unwrap();
+
+    const LOOP_INTERVAL: usize = 100;
+    let mut iter_count = 0;
+
+    while time::elapsed_seconds() < time_limit {
+        let edge_index = rnd::gen_range(0, input.m);
+        // TODO: 同じ頂点に繋がっている辺と同じものを高い確率で選ぶと良さそう
+        let prev = state.when[edge_index];
+        let next = rnd::gen_range(0, input.d);
+
+        let mut new_score = state.score;
+
+        // TODO: キャッシュする
+        for s in &ps {
+            new_score -= graph.calc_dist_sum(*s, &state.when, prev) as f64;
+            new_score -= graph.calc_dist_sum(*s, &state.when, next) as f64;
+        }
+        state.update_when(edge_index, next);
+        for s in &ps {
+            new_score += graph.calc_dist_sum(*s, &state.when, prev) as f64;
+            new_score += graph.calc_dist_sum(*s, &state.when, next) as f64;
+        }
+
+        let is_valid = *state.repair_counts.iter().max().unwrap() <= input.k;
+        let adopt = new_score < state.score && is_valid;
+        if adopt {
+            state.score = new_score;
+        } else {
+            state.update_when(edge_index, prev);
+        }
+
+        iter_count += 1;
+        if iter_count % LOOP_INTERVAL == 0 {
+            if debug {
+                writeln!(
+                    score_progress_file,
+                    "{},{:.2},{}",
+                    state.score,
+                    time::elapsed_seconds(),
+                    calc_actual_score_slow(&input, &graph, &state),
+                )
+                .unwrap();
+            }
+            // eprintln!("{} {:.2}", state.score, time::elapsed_seconds());
+        }
+    }
+
+    eprintln!("[optimize_state] iter_count: {}", iter_count);
+}
