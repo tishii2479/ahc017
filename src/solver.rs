@@ -4,8 +4,8 @@ use crate::{
     util::{rnd, time, VecSum},
 };
 
+use std::fs::File;
 use std::io::Write;
-use std::{fs::File, iter::zip};
 
 #[allow(unused)]
 pub fn create_random_initial_state(
@@ -123,8 +123,8 @@ pub fn create_initial_state(input: &Input, graph: &Graph, time_limit: f64, debug
         if adopt && is_valid {
             state.score = new_score;
         } else {
-            for (edge_index, prev) in zip(path_edges, &prev) {
-                state.update_when(*edge_index, *prev);
+            for i in 0..path_edges.len() {
+                state.update_when(path_edges[i], prev[i]);
             }
         }
 
@@ -156,6 +156,7 @@ pub fn optimize_state(
     debug: bool,
 ) {
     // eprintln!("before: {}", calc_actual_score_slow(&input, &graph, &state));
+    // TODO: 定期的に違う点を取り直す
     let ps = vec![
         graph.find_closest_point(&Pos { x: 250, y: 250 }),
         graph.find_closest_point(&Pos { x: 250, y: 750 }),
@@ -190,15 +191,14 @@ pub fn optimize_state(
     fn select_next(edge_index: usize, graph: &Graph, when: &Vec<usize>, d: usize) -> usize {
         if rnd::nextf() < 0.5 {
             // 頂点に繋がっている工事を伸ばす
-            let mut cand = vec![];
             let edge = &graph.edges[edge_index];
-            for e in &graph.adj[edge.u] {
-                cand.push(when[e.index]);
-            }
-            for e in &graph.adj[edge.v] {
-                cand.push(when[e.index]);
-            }
-            cand[rnd::gen_range(0, cand.len())]
+            let s = rnd::gen_range(0, graph.adj[edge.u].len() + graph.adj[edge.v].len());
+            let e = if s >= graph.adj[edge.u].len() {
+                graph.adj[edge.v][s - graph.adj[edge.u].len()].index
+            } else {
+                graph.adj[edge.u][s].index
+            };
+            when[e]
         } else {
             // ランダムに選ぶ
             rnd::gen_range(0, d)
@@ -223,7 +223,7 @@ pub fn optimize_state(
             continue;
         }
 
-        // `Agent.add_edge, remove_edge`が逆変換になっていないので、毎回スコアの合計を計算する必要がある
+        // ISSUE: `Agent.add_edge, remove_edge`が逆変換になっていないので、毎回スコアの合計を計算する必要がある
         state.score = {
             let mut sum = 0;
             for i in 0..input.d {
@@ -371,7 +371,7 @@ impl Agent {
             (reconnection_edge, best_dist - self.dist.vec[root])
         };
 
-        if best_reconnection_edge == NA {
+        if best_reconnection_edge == NA || rnd::nextf() < 0. {
             // TODO: たまに強制的に再計算する or 最後の方だけ常に再計算する
             // 再計算する
             for i in 0..graph.adj.len() {
