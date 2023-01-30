@@ -1,5 +1,6 @@
 pub const PENALTY: i64 = 1_000_000_000;
 pub const INF: i64 = 100_000_000_000_000;
+pub const NA: usize = 100_000_000_000_000;
 
 #[derive(Debug)]
 pub struct Input {
@@ -20,7 +21,7 @@ impl State {
     pub fn new(d: usize, when: Vec<usize>, score: f64) -> State {
         let mut repair_counts = vec![0; d];
         for i in &when {
-            if *i == INF as usize {
+            if *i == NA {
                 continue;
             }
             repair_counts[*i] += 1;
@@ -34,11 +35,11 @@ impl State {
     }
 
     pub fn update_when(&mut self, edge_index: usize, day: usize) {
-        if self.when[edge_index] != INF as usize {
+        if self.when[edge_index] != NA {
             self.repair_counts[self.when[edge_index]] -= 1;
         }
         self.when[edge_index] = day;
-        if self.when[edge_index] != INF as usize {
+        if self.when[edge_index] != NA {
             self.repair_counts[self.when[edge_index]] += 1;
         }
     }

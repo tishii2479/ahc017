@@ -14,7 +14,7 @@ pub fn create_random_initial_state(
     time_limit: f64,
     debug: bool,
 ) -> State {
-    let mut state = State::new(input.d, vec![INF as usize; input.m], 0.);
+    let mut state = State::new(input.d, vec![NA; input.m], 0.);
     for i in 0..input.m {
         let mut day = rnd::gen_range(0, input.d);
         while state.repair_counts[day] >= input.k {
@@ -66,7 +66,7 @@ pub fn create_initial_state(input: &Input, graph: &Graph, time_limit: f64, debug
         paths
     };
 
-    let mut state = State::new(input.d, vec![INF as usize; input.m], 0.);
+    let mut state = State::new(input.d, vec![NA; input.m], 0.);
     for i in 0..input.m {
         let mut day = rnd::gen_range(0, input.d);
         while state.repair_counts[day] >= input.k {
@@ -180,8 +180,8 @@ pub fn optimize_state(
     let mut score_progress_file = File::create("out/optimize_state_score_progress.csv").unwrap();
 
     const LOOP_INTERVAL: usize = 1000;
-    let start_temp: f64 = 0.;
-    let end_temp: f64 = 0.;
+    let start_temp: f64 = 100000.;
+    let end_temp: f64 = 100.;
     let mut iter_count = 0;
     let mut progress;
     let mut temp;
@@ -283,7 +283,7 @@ struct Agent {
 impl Agent {
     fn new(start: usize, graph: &Graph, when: &Vec<usize>, day: usize) -> Agent {
         let mut dist = vec![INF; graph.adj.len()];
-        let mut par_edge = vec![INF as usize; graph.adj.len()];
+        let mut par_edge = vec![NA; graph.adj.len()];
         dist[start] = 0;
         let mut dist = VecSum::new(dist);
         graph.dijkstra(start, when, day, &mut dist, &mut par_edge);
@@ -296,12 +296,12 @@ impl Agent {
     }
 
     fn remove_edge(&mut self, edge: &EdgeData, graph: &Graph, when: &Vec<usize>) {
-        let root = if self.par_edge[edge.v] != INF as usize
+        let root = if self.par_edge[edge.v] != NA
             && graph.edges[self.par_edge[edge.v]].has_vertex(edge.u)
         {
             // u -> v の最短路が壊れた
             edge.v
-        } else if self.par_edge[edge.u] != INF as usize
+        } else if self.par_edge[edge.u] != NA
             && graph.edges[self.par_edge[edge.u]].has_vertex(edge.v)
         {
             // v -> u の最短路が壊れた
@@ -313,7 +313,7 @@ impl Agent {
 
         let (best_reconnection_edge, best_reconnection_delta) = {
             let mut best_dist = INF;
-            let mut reconnection_edge = INF as usize;
+            let mut reconnection_edge = NA;
             for e in &graph.adj[root] {
                 if when[e.index] == self.day {
                     continue;
@@ -321,7 +321,7 @@ impl Agent {
                 // 子孫の頂点はループができちゃう（連結で無くなる）のでだめ
                 let is_child_vertex = {
                     let mut u = e.to;
-                    while self.par_edge[u] != INF as usize && u != root {
+                    while self.par_edge[u] != NA && u != root {
                         // 親の頂点を取得する
                         let par =
                             graph.edges[self.par_edge[u]].u + graph.edges[self.par_edge[u]].v - u;
@@ -341,11 +341,11 @@ impl Agent {
             (reconnection_edge, best_dist - self.dist.vec[root])
         };
 
-        if best_reconnection_edge == INF as usize {
+        if best_reconnection_edge == NA {
             // 再計算する
             for i in 0..graph.adj.len() {
                 self.dist.set(i, INF);
-                self.par_edge[i] = INF as usize;
+                self.par_edge[i] = NA;
             }
             self.dist.set(self.start, 0);
             graph.dijkstra(
@@ -364,9 +364,7 @@ impl Agent {
             while st.len() > 0 {
                 let v = st.pop().unwrap();
                 for e in &graph.adj[v] {
-                    if self.par_edge[e.to] != INF as usize
-                        && graph.edges[self.par_edge[e.to]].has_vertex(v)
-                    {
+                    if self.par_edge[e.to] != NA && graph.edges[self.par_edge[e.to]].has_vertex(v) {
                         self.dist
                             .set(e.to, self.dist.vec[e.to] + best_reconnection_delta);
                         st.push(e.to);
@@ -449,7 +447,7 @@ fn test_agent_random() {
         let mut dist = vec![INF; n];
         dist[s] = 0;
         let mut dist = VecSum::new(dist);
-        graph.dijkstra(s, when, day, &mut dist, &mut vec![INF as usize; n]);
+        graph.dijkstra(s, when, day, &mut dist, &mut vec![NA; n]);
         ret += dist.sum as f64;
         eprintln!("{:?}", dist);
         ret
@@ -499,7 +497,7 @@ fn test_agent() {
         let mut dist = vec![INF; n];
         dist[s] = 0;
         let mut dist = VecSum::new(dist);
-        graph.dijkstra(s, when, day, &mut dist, &mut vec![INF as usize; n]);
+        graph.dijkstra(s, when, day, &mut dist, &mut vec![NA; n]);
         ret += dist.sum as f64;
         eprintln!("{:?}", dist);
         ret

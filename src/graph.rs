@@ -75,7 +75,7 @@ impl Graph {
         // 前計算
         for v in 0..n {
             let mut dist = vec![INF; graph.adj.len()];
-            let mut par_edge = vec![INF as usize; graph.adj.len()];
+            let mut par_edge = vec![NA; graph.adj.len()];
             dist[v] = 0;
             let mut dist = VecSum::new(dist);
             graph.dijkstra(v, &when, 0, &mut dist, &mut par_edge);
@@ -123,7 +123,7 @@ impl Graph {
         let mut dist = vec![INF; self.n];
         dist[0] = 0;
         let mut dist = VecSum::new(dist);
-        self.dijkstra(0, &when, day, &mut dist, &mut vec![INF as usize; self.n]);
+        self.dijkstra(0, &when, day, &mut dist, &mut vec![NA; self.n]);
         *dist.vec.iter().max().unwrap() < INF
     }
 
@@ -131,13 +131,7 @@ impl Graph {
         let mut dist = vec![INF; self.n];
         dist[start] = 0;
         let mut dist = VecSum::new(dist);
-        self.dijkstra(
-            start,
-            &when,
-            day,
-            &mut dist,
-            &mut vec![INF as usize; self.n],
-        );
+        self.dijkstra(start, &when, day, &mut dist, &mut vec![NA; self.n]);
         dist.sum
     }
 
@@ -146,7 +140,7 @@ impl Graph {
         let mut edge_indicies = vec![];
         let mut verticies = vec![u];
         let mut cur = u;
-        while self.par_edge[v][cur] != INF as usize {
+        while self.par_edge[v][cur] != NA {
             edge_indicies.push(self.par_edge[v][cur]);
             cur = self.edges[self.par_edge[v][cur]].v + self.edges[self.par_edge[v][cur]].u - cur;
             verticies.push(cur);
@@ -160,7 +154,7 @@ impl Graph {
         let mut is_encased = true;
         for e in &self.adj[v] {
             // 2-辺連結なので、self.adj.len() >= 2
-            if when[self.adj[v][0].index] != when[e.index] || when[e.index] == INF as usize {
+            if when[self.adj[v][0].index] != when[e.index] || when[e.index] == NA {
                 is_encased = false;
             }
         }
