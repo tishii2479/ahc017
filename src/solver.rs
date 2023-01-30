@@ -156,7 +156,7 @@ pub fn optimize_state(
     debug: bool,
 ) {
     // eprintln!("before: {}", calc_actual_score_slow(&input, &graph, &state));
-    // TODO: 定期的に違う点を取り直す
+    // TODO: 定期的に違う点を取り直す?
     let ps = vec![
         graph.find_closest_point(&Pos { x: 250, y: 250 }),
         graph.find_closest_point(&Pos { x: 250, y: 750 }),
@@ -164,7 +164,6 @@ pub fn optimize_state(
         graph.find_closest_point(&Pos { x: 750, y: 250 }),
         graph.find_closest_point(&Pos { x: 750, y: 750 }),
     ];
-
     state.score = 0.;
 
     let mut agents = vec![];
@@ -188,23 +187,6 @@ pub fn optimize_state(
     let mut temp;
     let start_time = time::elapsed_seconds();
 
-    fn select_next(edge_index: usize, graph: &Graph, when: &Vec<usize>, d: usize) -> usize {
-        if rnd::nextf() < 0.5 {
-            // 頂点に繋がっている工事を伸ばす
-            let edge = &graph.edges[edge_index];
-            let s = rnd::gen_range(0, graph.adj[edge.u].len() + graph.adj[edge.v].len());
-            let e = if s >= graph.adj[edge.u].len() {
-                graph.adj[edge.v][s - graph.adj[edge.u].len()].index
-            } else {
-                graph.adj[edge.u][s].index
-            };
-            when[e]
-        } else {
-            // ランダムに選ぶ
-            rnd::gen_range(0, d)
-        }
-    }
-
     while time::elapsed_seconds() < time_limit {
         progress = (time::elapsed_seconds() - start_time) / (time_limit - start_time);
         temp = start_temp.powf(1. - progress) * end_temp.powf(progress);
@@ -213,9 +195,6 @@ pub fn optimize_state(
         let edge = &graph.edges[edge_index];
 
         let prev = state.when[edge_index];
-
-        // TODO: nextの選択の工夫
-        // 同じ頂点に繋がっている辺と同じものを高い確率で選ぶと良さそう
         let next = select_next(edge_index, &graph, &state.when, input.d);
         // let next = rnd::gen_range(0, input.d);
 
@@ -224,6 +203,9 @@ pub fn optimize_state(
         }
 
         // ISSUE: `Agent.add_edge, remove_edge`が逆変換になっていないので、毎回スコアの合計を計算する必要がある
+        // やらなくても良い
+        // ボトルネックではないので、対処は今の所していない
+        // score_diffを足してあげれば計算は合うはず
         state.score = {
             let mut sum = 0;
             for i in 0..input.d {
@@ -253,8 +235,8 @@ pub fn optimize_state(
 
         let is_valid = *state.repair_counts.iter().max().unwrap() <= input.k;
         let new_score = state.score + score_diff;
-        // let adopt = (-(new_score - state.score) / temp).exp() > rnd::nextf();
-        let adopt = new_score < state.score;
+        let adopt = (-(new_score - state.score) / temp).exp() > rnd::nextf();
+        // let adopt = new_score < state.score;
 
         if adopt && is_valid {
             // eprintln!(
@@ -294,7 +276,7 @@ pub fn optimize_state(
                     actual_score
                 );
             } else {
-                eprintln!("[{:.2}] {}", time::elapsed_seconds(), state.score);
+                eprintln!("[{:.2}] {}", time::elapsed_seconds(), state.score,);
             }
         }
     }
@@ -341,9 +323,9 @@ impl Agent {
             return;
         };
 
-        let (best_reconnection_edge, best_reconnection_delta) = {
+        let (reconnection_edge, reconnection_delta) = {
             let mut best_dist = INF;
-            let mut reconnection_edge = NA;
+            let mut best_reconnection_edge = NA;
             for e in &graph.adj[root] {
                 if when[e.index] == self.day {
                     continue;
@@ -365,13 +347,13 @@ impl Agent {
                 let new_dist = self.dist.vec[e.to] + e.weight;
                 if new_dist < best_dist {
                     best_dist = new_dist;
-                    reconnection_edge = e.index;
+                    best_reconnection_edge = e.index;
                 }
             }
-            (reconnection_edge, best_dist - self.dist.vec[root])
+            (best_reconnection_edge, best_dist - self.dist.vec[root])
         };
 
-        if best_reconnection_edge == NA || rnd::nextf() < 0. {
+        if reconnection_edge == NA || rnd::nextf() < 0. {
             // TODO: たまに強制的に再計算する or 最後の方だけ常に再計算する
             // 再計算する
             for i in 0..graph.adj.len() {
@@ -387,19 +369,19 @@ impl Agent {
                 &mut self.par_edge,
             );
         } else {
-            self.par_edge[root] = best_reconnection_edge;
+            self.par_edge[root] = reconnection_edge;
             // これがあると閉路ができなくなる
             // 正しいけど、理屈がわからない
             self.dist
-                .set(root, self.dist.vec[root] + best_reconnection_delta);
-            // 子孫のdistを全てにbest_reconnection_deltaを足す
+                .set(root, self.dist.vec[root] + reconnection_delta);
+            // 子孫のdist全てにreconnection_deltaを足す
             let mut st = vec![root];
             while st.len() > 0 {
                 let v = st.pop().unwrap();
                 for e in &graph.adj[v] {
                     if self.par_edge[e.to] != NA && graph.edges[self.par_edge[e.to]].has_vertex(v) {
                         self.dist
-                            .set(e.to, self.dist.vec[e.to] + best_reconnection_delta);
+                            .set(e.to, self.dist.vec[e.to] + reconnection_delta);
                         st.push(e.to);
                     }
                 }
@@ -471,6 +453,23 @@ fn calc_cosine_similarity(to_pos: &Pos, from_pos: &Pos, to_pos2: &Pos, from_pos2
     let prod = (dy1 * dy2 + dx1 * dx2) as f64;
 
     prod / div
+}
+
+fn select_next(edge_index: usize, graph: &Graph, when: &Vec<usize>, d: usize) -> usize {
+    if rnd::nextf() < 0.5 {
+        // 頂点に繋がっている工事を伸ばす
+        let edge = &graph.edges[edge_index];
+        let s = rnd::gen_range(0, graph.adj[edge.u].len() + graph.adj[edge.v].len());
+        let e = if s >= graph.adj[edge.u].len() {
+            graph.adj[edge.v][s - graph.adj[edge.u].len()].index
+        } else {
+            graph.adj[edge.u][s].index
+        };
+        when[e]
+    } else {
+        // ランダムに選ぶ
+        rnd::gen_range(0, d)
+    }
 }
 
 #[test]

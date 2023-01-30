@@ -26,13 +26,13 @@ fn read_input() -> (Input, Graph) {
 
 fn main() {
     time::start_clock();
-    const TIME_LIMIT: f64 = 3.7;
+    const TIME_LIMIT: f64 = 3.8;
 
     let (input, graph) = read_input();
 
     // 初期解の生成
     // TODO: time_limitの調整
-    let mut state = create_initial_state(&input, &graph, 1., false);
+    let mut state = create_random_initial_state(&input, &graph, 1., false);
 
     // TODO: 連結にする
     // connect_all_state();
@@ -45,5 +45,5 @@ fn main() {
 
     eprintln!("{:?}", state.repair_counts);
     eprintln!("Time elapsed = {}", time::elapsed_seconds());
-    // eprintln!("Score = {}", calc_actual_score_slow(&input, &graph, &state));
+    eprintln!("Score = {}", calc_actual_score_slow(&input, &graph, &state));
 }

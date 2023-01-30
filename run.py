@@ -6,7 +6,7 @@ import pandas as pd
 # mypy: ignore-errors
 
 CASE = 100
-TL = 7.0
+TL = 110.0
 
 
 def execute_case(seed):
