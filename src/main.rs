@@ -31,10 +31,9 @@ fn main() {
     let (input, graph) = read_input();
 
     // 初期解の生成
-    // TODO: time_limitの調整
-    let mut state = create_random_initial_state(&input, &graph, 1., false);
+    let mut state = create_random_initial_state(&input);
 
-    // TODO: 連結にする
+    // TODO: 必ず連結にする?
     // connect_all_state();
 
     // 最適化
