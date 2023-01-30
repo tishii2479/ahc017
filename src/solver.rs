@@ -7,8 +7,7 @@ use crate::{
 use std::io::Write;
 use std::{fs::File, iter::zip};
 
-#[allow(unused_variables, unused)]
-
+#[allow(unused)]
 pub fn create_random_initial_state(
     input: &Input,
     graph: &Graph,
@@ -160,7 +159,7 @@ pub fn optimize_state(
     let ps = vec![
         graph.find_closest_point(&Pos { x: 250, y: 250 }),
         graph.find_closest_point(&Pos { x: 250, y: 750 }),
-        // graph.find_closest_point(&Pos { x: 500, y: 500 }),
+        graph.find_closest_point(&Pos { x: 500, y: 500 }),
         graph.find_closest_point(&Pos { x: 750, y: 250 }),
         graph.find_closest_point(&Pos { x: 750, y: 750 }),
     ];
@@ -181,9 +180,17 @@ pub fn optimize_state(
     let mut score_progress_file = File::create("out/optimize_state_score_progress.csv").unwrap();
 
     const LOOP_INTERVAL: usize = 1000;
+    let start_temp: f64 = 0.;
+    let end_temp: f64 = 0.;
     let mut iter_count = 0;
+    let mut progress;
+    let mut temp;
+    let start_time = time::elapsed_seconds();
 
     while time::elapsed_seconds() < time_limit {
+        progress = (time::elapsed_seconds() - start_time) / (time_limit - start_time);
+        temp = start_temp.powf(1. - progress) * end_temp.powf(progress);
+
         let edge_index = rnd::gen_range(0, input.m);
         let edge = &graph.edges[edge_index];
 
@@ -216,16 +223,17 @@ pub fn optimize_state(
 
         let is_valid = *state.repair_counts.iter().max().unwrap() <= input.k;
         let new_score = state.score + score_diff;
-        let adopt = new_score < state.score && is_valid;
+        // let adopt = (-(new_score - state.score) / temp).exp() > rnd::nextf();
+        let adopt = new_score < state.score;
 
-        if adopt {
-            eprintln!(
-                "[{:.2}] improved score: {} -> {} ({})",
-                time::elapsed_seconds(),
-                state.score,
-                new_score,
-                score_diff,
-            );
+        if adopt && is_valid {
+            // eprintln!(
+            //     "[{:.2}] adopted score: {} -> {} ({})",
+            //     time::elapsed_seconds(),
+            //     state.score,
+            //     new_score,
+            //     score_diff,
+            // );
             state.score = new_score;
         } else {
             state.update_when(edge_index, prev);
@@ -240,16 +248,24 @@ pub fn optimize_state(
         iter_count += 1;
         if iter_count % LOOP_INTERVAL == 0 {
             if debug {
+                let actual_score = calc_actual_score_slow(&input, &graph, &state);
                 writeln!(
                     score_progress_file,
                     "{},{:.2},{}",
                     state.score,
                     time::elapsed_seconds(),
-                    calc_actual_score_slow(&input, &graph, &state),
+                    actual_score,
                 )
                 .unwrap();
+                eprintln!(
+                    "[{:.2}] {} {}",
+                    time::elapsed_seconds(),
+                    state.score,
+                    actual_score
+                );
+            } else {
+                eprintln!("[{:.2}] {}", time::elapsed_seconds(), state.score);
             }
-            eprintln!("[{:.2}] {}", time::elapsed_seconds(), state.score);
         }
     }
 
@@ -284,12 +300,12 @@ impl Agent {
         let _ = if self.par_edge[edge.v] != INF as usize
             && graph.edges[self.par_edge[edge.v]].has_vertex(edge.u)
         {
-            // u -> v の最短炉が壊れた
+            // u -> v の最短路が壊れた
             edge.u
         } else if self.par_edge[edge.u] != INF as usize
             && graph.edges[self.par_edge[edge.u]].has_vertex(edge.v)
         {
-            // v -> u の最短炉が壊れた
+            // v -> u の最短路が壊れた
             edge.v
         } else {
             // 最短路に含まれていないので何もしない
