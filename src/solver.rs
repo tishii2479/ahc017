@@ -164,13 +164,19 @@ pub fn optimize_state(
         graph.find_closest_point(&Pos { x: 750, y: 250 }),
         graph.find_closest_point(&Pos { x: 750, y: 750 }),
     ];
-    // eprintln!("{:?}", ps);
+    eprintln!("{:?}", ps);
 
     state.score = 0.;
+
+    let mut agents = vec![];
     for day in 0..input.d {
+        let mut a = vec![];
         for s in &ps {
-            state.score += graph.calc_dist_sum(*s, &state.when, day) as f64;
+            let agent = Agent::new(*s, &graph, &state.when, day);
+            state.score += agent.dist.sum as f64;
+            a.push(agent);
         }
+        agents.push(a);
     }
 
     let mut score_progress_file = File::create("out/optimize_state_score_progress.csv").unwrap();
@@ -180,21 +186,27 @@ pub fn optimize_state(
 
     while time::elapsed_seconds() < time_limit {
         let edge_index = rnd::gen_range(0, input.m);
+        let edge = graph.edges[edge_index];
         // TODO: 同じ頂点に繋がっている辺と同じものを高い確率で選ぶと良さそう
         let prev = state.when[edge_index];
         let next = rnd::gen_range(0, input.d);
 
         let mut new_score = state.score;
 
-        // TODO: キャッシュする
-        for s in &ps {
-            new_score -= graph.calc_dist_sum(*s, &state.when, prev) as f64;
-            new_score -= graph.calc_dist_sum(*s, &state.when, next) as f64;
+        for a in &agents[prev] {
+            new_score -= a.dist.sum as f64;
+        }
+        for a in &agents[next] {
+            new_score -= a.dist.sum as f64;
         }
         state.update_when(edge_index, next);
-        for s in &ps {
-            new_score += graph.calc_dist_sum(*s, &state.when, prev) as f64;
-            new_score += graph.calc_dist_sum(*s, &state.when, next) as f64;
+        for a in &mut agents[prev] {
+            a.add_edge(&edge, &graph, &state.when, prev);
+            new_score += a.dist.sum as f64;
+        }
+        for a in &mut agents[next] {
+            a.remove_edge(&edge, &graph, &state.when, next);
+            new_score += a.dist.sum as f64;
         }
 
         let is_valid = *state.repair_counts.iter().max().unwrap() <= input.k;
@@ -203,6 +215,12 @@ pub fn optimize_state(
             state.score = new_score;
         } else {
             state.update_when(edge_index, prev);
+            for a in &mut agents[prev] {
+                a.remove_edge(&edge, &graph, &state.when, prev);
+            }
+            for a in &mut agents[next] {
+                a.add_edge(&edge, &graph, &state.when, next);
+            }
         }
 
         iter_count += 1;
@@ -224,20 +242,20 @@ pub fn optimize_state(
     eprintln!("[optimize_state] iter_count: {}", iter_count);
 }
 
-struct S {
-    s: usize,
+#[derive(Debug)]
+struct Agent {
     dist: VecSum,
     par: Vec<usize>,
 }
 
-impl S {
-    fn new(s: usize, graph: &Graph, when: &Vec<usize>, day: usize) -> S {
+impl Agent {
+    fn new(start: usize, graph: &Graph, when: &Vec<usize>, day: usize) -> Agent {
         let mut dist = vec![INF; graph.adj.len()];
         let mut par = vec![INF as usize; graph.adj.len()];
-        dist[s] = 0;
+        dist[start] = 0;
         let mut dist = VecSum::new(dist);
-        graph.dijkstra(s, when, day, &mut dist, &mut par);
-        S { s, dist, par }
+        graph.dijkstra(start, when, day, &mut dist, &mut par);
+        Agent { dist, par }
     }
 
     fn remove_edge(&mut self, edge: &EdgeData, graph: &Graph, when: &Vec<usize>, day: usize) {
@@ -258,6 +276,7 @@ impl S {
             self.dist.set(v, INF);
             for e in &graph.adj[v] {
                 if self.par[e.to] == v {
+                    self.par[e.to] = INF as usize;
                     st.push(e.to);
                 }
             }
@@ -285,13 +304,11 @@ impl S {
             let v = st.pop().unwrap();
             for e in &graph.adj[v] {
                 // その辺が使えない場合
-                if when[e.index] == day {
+                let weight = if when[e.index] == day { INF } else { e.weight };
+                if self.dist.vec[v] + weight >= self.dist.vec[e.to] {
                     continue;
                 }
-                if self.dist.vec[v] + e.weight >= self.dist.vec[e.to] {
-                    continue;
-                }
-                self.dist.set(e.to, self.dist.vec[v] + e.weight);
+                self.dist.set(e.to, self.dist.vec[v] + weight);
                 self.par[e.to] = v;
                 st.push(e.to);
             }
@@ -327,4 +344,24 @@ fn calc_cosine_similarity(to_pos: &Pos, from_pos: &Pos, to_pos2: &Pos, from_pos2
     let prod = (dy1 * dy2 + dx1 * dx2) as f64;
 
     prod / div
+}
+
+#[test]
+fn test_agent() {
+    let n = 5;
+    let graph = Graph::new(
+        n,
+        vec![(0, 1, 2), (0, 2, 3), (2, 3, 4), (2, 4, 2), (0, 4, 5)],
+        vec![(0, 0), (0, 0), (0, 0), (0, 0), (0, 0)],
+    );
+    let mut when = vec![0; n];
+    let mut agent = Agent::new(0, &graph, &when, 1);
+    eprintln!("{:?}", agent);
+    agent.remove_edge(&graph.edges[0], &graph, &when, 1);
+    when[0] = 1;
+    eprintln!("{:?}", agent);
+    agent.add_edge(&graph.edges[0], &graph, &when, 1);
+    when[0] = 0;
+    eprintln!("{:?}", agent);
+    eprintln!("{:?}", graph);
 }

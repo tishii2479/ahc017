@@ -94,14 +94,12 @@ impl Graph {
             }
             for &e in &self.adj[v] {
                 // その辺が使えない場合
-                if when[e.index] == day {
-                    continue;
-                }
-                if dist.vec[e.to] <= dist.vec[v] + e.weight {
+                let weight = if when[e.index] == day { INF } else { e.weight };
+                if dist.vec[e.to] <= dist.vec[v] + weight {
                     continue;
                 }
                 par[e.to] = e.index;
-                dist.set(e.to, dist.vec[v] + e.weight);
+                dist.set(e.to, dist.vec[v] + weight);
                 q.push_back((Reverse(dist.vec[e.to]), e.to));
             }
         }
