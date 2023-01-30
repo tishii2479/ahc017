@@ -155,7 +155,7 @@ pub fn optimize_state(
     time_limit: f64,
     debug: bool,
 ) {
-    eprintln!("before: {}", calc_actual_score_slow(&input, &graph, &state));
+    // eprintln!("before: {}", calc_actual_score_slow(&input, &graph, &state));
     let ps = vec![
         graph.find_closest_point(&Pos { x: 250, y: 250 }),
         graph.find_closest_point(&Pos { x: 250, y: 750 }),
@@ -187,6 +187,24 @@ pub fn optimize_state(
     let mut temp;
     let start_time = time::elapsed_seconds();
 
+    fn select_next(edge_index: usize, graph: &Graph, when: &Vec<usize>, d: usize) -> usize {
+        if rnd::nextf() < 0.5 {
+            // 頂点に繋がっている工事を伸ばす
+            let mut cand = vec![];
+            let edge = &graph.edges[edge_index];
+            for e in &graph.adj[edge.u] {
+                cand.push(when[e.index]);
+            }
+            for e in &graph.adj[edge.v] {
+                cand.push(when[e.index]);
+            }
+            cand[rnd::gen_range(0, cand.len())]
+        } else {
+            // ランダムに選ぶ
+            rnd::gen_range(0, d)
+        }
+    }
+
     while time::elapsed_seconds() < time_limit {
         progress = (time::elapsed_seconds() - start_time) / (time_limit - start_time);
         temp = start_temp.powf(1. - progress) * end_temp.powf(progress);
@@ -198,11 +216,23 @@ pub fn optimize_state(
 
         // TODO: nextの選択の工夫
         // 同じ頂点に繋がっている辺と同じものを高い確率で選ぶと良さそう
-        let next = rnd::gen_range(0, input.d);
+        let next = select_next(edge_index, &graph, &state.when, input.d);
+        // let next = rnd::gen_range(0, input.d);
+
         if prev == next {
             continue;
         }
 
+        // `Agent.add_edge, remove_edge`が逆変換になっていないので、毎回スコアの合計を計算する必要がある
+        state.score = {
+            let mut sum = 0;
+            for i in 0..input.d {
+                for a in &agents[i] {
+                    sum += a.dist.sum;
+                }
+            }
+            sum as f64
+        };
         let mut score_diff = 0.;
 
         for a in &agents[prev] {
@@ -342,6 +372,7 @@ impl Agent {
         };
 
         if best_reconnection_edge == NA {
+            // TODO: たまに強制的に再計算する or 最後の方だけ常に再計算する
             // 再計算する
             for i in 0..graph.adj.len() {
                 self.dist.set(i, INF);
@@ -357,9 +388,11 @@ impl Agent {
             );
         } else {
             self.par_edge[root] = best_reconnection_edge;
+            // これがあると閉路ができなくなる
+            // 正しいけど、理屈がわからない
             self.dist
                 .set(root, self.dist.vec[root] + best_reconnection_delta);
-            // 子孫のdistを全てにbest_deltaを足す
+            // 子孫のdistを全てにbest_reconnection_deltaを足す
             let mut st = vec![root];
             while st.len() > 0 {
                 let v = st.pop().unwrap();

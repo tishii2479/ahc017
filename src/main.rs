@@ -31,6 +31,7 @@ fn main() {
     let (input, graph) = read_input();
 
     // 初期解の生成
+    // TODO: time_limitの調整
     let mut state = create_initial_state(&input, &graph, 1., false);
 
     // TODO: 連結にする
