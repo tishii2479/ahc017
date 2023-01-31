@@ -373,3 +373,16 @@ pub fn create_initial_state(input: &Input, graph: &Graph, time_limit: f64, debug
 
     state
 }
+
+fn calc_cosine_similarity(to_pos: &Pos, from_pos: &Pos, to_pos2: &Pos, from_pos2: &Pos) -> f64 {
+    let dy1 = to_pos.y - from_pos.y;
+    let dx1 = to_pos.x - from_pos.x;
+
+    let dy2 = to_pos2.y - from_pos2.y;
+    let dx2 = to_pos2.x - from_pos2.x;
+
+    let div = ((dy1 * dy1 + dx1 * dx1) as f64).sqrt() * ((dy2 * dy2 + dx2 * dx2) as f64).sqrt();
+    let prod = (dy1 * dy2 + dx1 * dx2) as f64;
+
+    prod / div
+}

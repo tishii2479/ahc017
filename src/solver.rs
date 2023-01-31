@@ -19,20 +19,13 @@ pub fn create_random_initial_state(input: &Input) -> State {
     state
 }
 
-pub fn optimize_state(
-    state: &mut State,
-    input: &Input,
-    graph: &Graph,
-    time_limit: f64,
-    debug: bool,
-) {
-    // eprintln!("before: {}", calc_actual_score_slow(&input, &graph, &state));
-    // TODO: 定期的に違う点を取り直す?
+pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limit: f64, log: bool) {
     let mut annealing_state = AnnealingState::new(&graph, &input, &state);
-
     let mut score_progress_file = File::create("out/optimize_state_score_progress.csv").unwrap();
 
     const LOOP_INTERVAL: usize = 1000;
+    // TODO: 温度調整
+    // input.nの大きさに従って決めた方が良さそう
     let start_temp: f64 = 100000.;
     let end_temp: f64 = 100.;
     let mut iter_count = 0;
@@ -66,24 +59,13 @@ pub fn optimize_state(
         let adopt = (-(new_score - state.score) / temp).exp() > rnd::nextf();
 
         if adopt && is_valid {
-            // eprintln!(
-            //     "[{:.2}] adopted score: {} -> {} ({})",
-            //     time::elapsed_seconds(),
-            //     state.score,
-            //     new_score,
-            //     score_diff,
-            // );
-            // ISSUE: `Agent.add_edge, remove_edge`が逆変換になっていないので、毎回スコアの合計を計算する必要がある
-            // やらなくても良い
-            // ボトルネックではないので、対処は今の所していない
-            // score_diffを足してあげれば計算は合うはず
-            // state.score = new_score;
+            // 採用
         } else {
             annealing_state.reverse(&change, state, &graph);
         }
 
         if iter_count % LOOP_INTERVAL == 0 {
-            if debug {
+            if log {
                 let actual_score = calc_actual_score_slow(&input, &graph, &state);
                 writeln!(
                     score_progress_file,
@@ -124,6 +106,7 @@ struct AnnealingState {
 
 impl AnnealingState {
     fn new(graph: &Graph, input: &Input, state: &State) -> AnnealingState {
+        // TODO: 定期的に違う点を取り直す?
         let ps = vec![
             graph.find_closest_point(&Pos { x: 250, y: 250 }),
             graph.find_closest_point(&Pos { x: 250, y: 750 }),
@@ -145,6 +128,10 @@ impl AnnealingState {
         AnnealingState { agents }
     }
 
+    fn estimate(&self, change: &Change, state: &mut State, graph: Graph) -> f64 {
+        0.
+    }
+
     fn apply(&mut self, change: &Change, state: &mut State, graph: &Graph) -> f64 {
         let mut score_diff = 0.;
 
@@ -163,7 +150,6 @@ impl AnnealingState {
             a.remove_edge(change.edge_index, &graph, &state.when);
             score_diff += a.dist.sum as f64;
         }
-
         score_diff
     }
 
@@ -211,6 +197,10 @@ impl Agent {
         }
     }
 
+    fn estimate_remove_edge(&self, edge_index: usize, graph: &Graph, when: &Vec<usize>) -> f64 {
+        0.
+    }
+
     fn remove_edge(&mut self, edge_index: usize, graph: &Graph, when: &Vec<usize>) {
         let edge = &graph.edges[edge_index];
         let root = if self.par_edge[edge.v] != NA
@@ -228,6 +218,7 @@ impl Agent {
             return;
         };
 
+        // TODO: 繋がっている頂点だけでなく、もっと探す?
         let (reconnection_edge, reconnection_delta) = {
             let mut best_dist = INF;
             let mut best_reconnection_edge = NA;
@@ -258,22 +249,7 @@ impl Agent {
             (best_reconnection_edge, best_dist - self.dist.vec[root])
         };
 
-        if reconnection_edge == NA {
-            // TODO: たまに強制的に再計算する or 最後の方だけ常に再計算する
-            // 再計算する
-            for i in 0..graph.adj.len() {
-                self.dist.set(i, INF);
-                self.par_edge[i] = NA;
-            }
-            self.dist.set(self.start, 0);
-            graph.dijkstra(
-                self.start,
-                when,
-                self.day,
-                &mut self.dist,
-                &mut self.par_edge,
-            );
-        } else {
+        if reconnection_edge != NA {
             self.par_edge[root] = reconnection_edge;
             // これがあると閉路ができなくなる
             // 正しいけど、理屈がわからない
@@ -291,7 +267,23 @@ impl Agent {
                     }
                 }
             }
+            return;
         }
+
+        // 全て再計算する
+        // TODO: たまに強制的に再計算する or 最後の方だけ常に再計算する
+        for i in 0..graph.adj.len() {
+            self.dist.set(i, INF);
+            self.par_edge[i] = NA;
+        }
+        self.dist.set(self.start, 0);
+        graph.dijkstra(
+            self.start,
+            when,
+            self.day,
+            &mut self.dist,
+            &mut self.par_edge,
+        );
     }
 
     fn add_edge(&mut self, edge_index: usize, graph: &Graph, when: &Vec<usize>) {
@@ -346,19 +338,6 @@ pub fn calc_actual_score_slow(input: &Input, graph: &Graph, state: &State) -> i6
         fk_sum += fk;
     }
     (1e3 * (fk_sum / input.d as f64)).round() as i64
-}
-
-fn calc_cosine_similarity(to_pos: &Pos, from_pos: &Pos, to_pos2: &Pos, from_pos2: &Pos) -> f64 {
-    let dy1 = to_pos.y - from_pos.y;
-    let dx1 = to_pos.x - from_pos.x;
-
-    let dy2 = to_pos2.y - from_pos2.y;
-    let dx2 = to_pos2.x - from_pos2.x;
-
-    let div = ((dy1 * dy1 + dx1 * dx1) as f64).sqrt() * ((dy2 * dy2 + dx2 * dx2) as f64).sqrt();
-    let prod = (dy1 * dy2 + dx1 * dx2) as f64;
-
-    prod / div
 }
 
 fn select_next(edge_index: usize, graph: &Graph, when: &Vec<usize>, d: usize) -> usize {
