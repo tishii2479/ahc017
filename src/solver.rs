@@ -108,11 +108,11 @@ impl AnnealingState {
     fn new(graph: &Graph, input: &Input, state: &State) -> AnnealingState {
         // TODO: 定期的に違う点を取り直す?
         let ps = vec![
-            graph.find_closest_point(&Pos { x: 250, y: 250 }),
-            graph.find_closest_point(&Pos { x: 250, y: 750 }),
+            graph.find_closest_point(&Pos { x: 500, y: 0 }),
+            graph.find_closest_point(&Pos { x: 500, y: 1000 }),
             graph.find_closest_point(&Pos { x: 500, y: 500 }),
-            graph.find_closest_point(&Pos { x: 750, y: 250 }),
-            graph.find_closest_point(&Pos { x: 750, y: 750 }),
+            graph.find_closest_point(&Pos { x: 0, y: 500 }),
+            graph.find_closest_point(&Pos { x: 1000, y: 500 }),
         ];
 
         let mut agents = vec![];
