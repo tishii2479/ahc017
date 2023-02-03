@@ -91,6 +91,8 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
         }
     }
 
+    eprintln!("{:?}", annealing_state.agents[0][0].c);
+
     eprintln!("[optimize_state] iter_count: {}", iter_count);
 }
 
@@ -126,10 +128,6 @@ impl AnnealingState {
         }
 
         AnnealingState { agents }
-    }
-
-    fn estimate(&self, change: &Change, state: &mut State, graph: Graph) -> f64 {
-        0.
     }
 
     fn apply(&mut self, change: &Change, state: &mut State, graph: &Graph) -> f64 {
@@ -180,6 +178,7 @@ struct Agent {
     day: usize,
     dist: VecSum,
     par_edge: Vec<usize>,
+    c: Vec<usize>,
 }
 
 impl Agent {
@@ -194,11 +193,8 @@ impl Agent {
             day,
             dist,
             par_edge,
+            c: vec![0, 0],
         }
-    }
-
-    fn estimate_remove_edge(&self, edge_index: usize, graph: &Graph, when: &Vec<usize>) -> f64 {
-        0.
     }
 
     fn remove_edge(&mut self, edge_index: usize, graph: &Graph, when: &Vec<usize>) {
@@ -218,55 +214,101 @@ impl Agent {
             return;
         };
 
-        // TODO: 繋がっている頂点だけでなく、もっと探す?
-        let (reconnection_edge, reconnection_delta) = {
-            let mut best_dist = INF;
-            let mut best_reconnection_edge = NA;
-            for e in &graph.adj[root] {
-                if when[e.index] == self.day {
+        fn is_child_vertex(v: usize, par: usize, graph: &Graph, par_edge: &Vec<usize>) -> bool {
+            let mut v = v;
+            while par_edge[v] != NA && v != par {
+                // 親の頂点を取得する
+                v = graph.edges[par_edge[v]].u + graph.edges[par_edge[v]].v - v;
+            }
+            v == par
+        }
+
+        fn par_vertex(v: usize, graph: &Graph, par_edge: &Vec<usize>) -> usize {
+            graph.edges[par_edge[v]].other_vertex(v)
+        }
+
+        // rootから距離が3以下の頂点を探す
+        // 各頂点について、rootの子孫ではなく、繋がっていない頂点が隣接していて、工事されていない辺があれば、
+        // それに繋げることができる
+        // rootの距離の増分が最小の頂点を探す
+        fn dfs(
+            v: usize,
+            root: usize,
+            edge_path: &mut Vec<usize>,
+            when: &Vec<usize>,
+            graph: &Graph,
+            agent: &Agent,
+            best_path: &mut (i64, Vec<usize>, usize),
+        ) {
+            for e in &graph.adj[v] {
+                // 工事されている辺は通らない
+                if when[e.index] == agent.day {
                     continue;
                 }
-                // 子孫の頂点はループができちゃう（連結で無くなる）のでだめ
-                let is_child_vertex = {
-                    let mut u = e.to;
-                    while self.par_edge[u] != NA && u != root {
-                        // 親の頂点を取得する
-                        let par =
-                            graph.edges[self.par_edge[u]].u + graph.edges[self.par_edge[u]].v - u;
-                        u = par;
+                // 親には遡らない
+                if par_vertex(v, graph, &agent.par_edge) == e.to {
+                    continue;
+                }
+                // rootの子孫ではなく、繋がっていない頂点が隣接していれば繋げることができる
+                if !is_child_vertex(e.to, root, &graph, &agent.par_edge) {
+                    // 繋げることができる
+                    // 増える距離を計算する
+                    let mut new_dist = agent.dist.vec[e.to] + e.weight;
+                    for p in edge_path.into_iter() {
+                        new_dist += graph.edges[*p].weight;
                     }
-                    u == root
-                };
-                if is_child_vertex {
-                    continue;
-                }
-                let new_dist = self.dist.vec[e.to] + e.weight;
-                if new_dist < best_dist {
-                    best_dist = new_dist;
-                    best_reconnection_edge = e.index;
+                    if new_dist < best_path.0 {
+                        best_path.0 = new_dist;
+                        best_path.1 = edge_path.clone();
+                        best_path.2 = e.index;
+                    }
+                } else {
+                    // 子孫の頂点に探索を広げる
+                    // 深さ3以上は探索しない
+                    if edge_path.len() == 3 {
+                        continue;
+                    }
+                    edge_path.push(e.index);
+                    dfs(e.to, root, edge_path, when, graph, agent, best_path);
+                    edge_path.pop();
                 }
             }
-            (best_reconnection_edge, best_dist - self.dist.vec[root])
-        };
+        }
 
-        if reconnection_edge != NA {
-            self.par_edge[root] = reconnection_edge;
+        // rootの距離の増分、rootからnew_rootまでに通る辺、new_rootが新しく繋ぐ辺
+        let mut best_path = (INF, vec![], NA);
+        dfs(root, root, &mut vec![], when, graph, &self, &mut best_path);
+
+        if best_path.2 != NA {
+            let reconnect_path = best_path.1;
+            let reconnect_edge = graph.edges[best_path.2];
+            let mut cur = root;
+            for e in &reconnect_path {
+                self.par_edge[cur] = *e;
+                let par = graph.edges[*e].other_vertex(cur);
+                cur = par;
+            }
+
+            let new_root = cur;
+            self.par_edge[new_root] = best_path.2;
             // これがあると閉路ができなくなる
             // 正しいけど、理屈がわからない
-            self.dist
-                .set(root, self.dist.vec[root] + reconnection_delta);
-            // 子孫のdist全てにreconnection_deltaを足す
-            let mut st = vec![root];
+            self.dist.set(
+                new_root,
+                self.dist.vec[reconnect_edge.other_vertex(new_root)] + reconnect_edge.weight,
+            );
+
+            let mut st = vec![new_root];
             while st.len() > 0 {
                 let v = st.pop().unwrap();
                 for e in &graph.adj[v] {
                     if self.par_edge[e.to] != NA && graph.edges[self.par_edge[e.to]].has_vertex(v) {
-                        self.dist
-                            .set(e.to, self.dist.vec[e.to] + reconnection_delta);
+                        self.dist.set(e.to, self.dist.vec[v] + e.weight);
                         st.push(e.to);
                     }
                 }
             }
+            self.c[0] += 1;
             return;
         }
 
@@ -284,6 +326,7 @@ impl Agent {
             &mut self.dist,
             &mut self.par_edge,
         );
+        self.c[1] += 1;
     }
 
     fn add_edge(&mut self, edge_index: usize, graph: &Graph, when: &Vec<usize>) {
@@ -396,14 +439,14 @@ fn test_agent_random() {
         agents[when[e]].remove_edge(e, &graph, &when);
         agents[1 - when[e]].add_edge(e, &graph, &when);
         eprintln!("{:?}", agents);
-        // assert_eq!(
-        //     calc_expected(&graph, &when, n, s, 0),
-        //     agents[0].dist.sum as f64
-        // );
-        // assert_eq!(
-        //     calc_expected(&graph, &when, n, s, 1),
-        //     agents[1].dist.sum as f64
-        // );
+        assert_eq!(
+            calc_expected(&graph, &when, n, s, 0),
+            agents[0].dist.sum as f64
+        );
+        assert_eq!(
+            calc_expected(&graph, &when, n, s, 1),
+            agents[1].dist.sum as f64
+        );
     }
 }
 

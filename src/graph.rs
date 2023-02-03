@@ -17,6 +17,13 @@ pub struct EdgeData {
 }
 
 impl EdgeData {
+    pub fn other_vertex(&self, v: usize) -> usize {
+        assert!(self.u == v || self.v == v);
+        self.u + self.v - v
+    }
+}
+
+impl EdgeData {
     pub fn has_vertex(&self, v: usize) -> bool {
         self.v == v || self.u == v
     }
