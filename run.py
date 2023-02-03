@@ -37,7 +37,7 @@ def main():
     count = 0
     total = 0
 
-    with multiprocessing.Pool(max(1, multiprocessing.cpu_count() - 2)) as pool:
+    with multiprocessing.Pool() as pool:
         for seed, score, N, M, D, K in pool.imap_unordered(execute_case, range(CASE)):
             count += 1
 

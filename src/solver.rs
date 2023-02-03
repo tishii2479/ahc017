@@ -19,7 +19,7 @@ pub fn create_random_initial_state(input: &Input) -> State {
     state
 }
 
-pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limit: f64, log: bool) {
+pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limit: f64) {
     let mut annealing_state = AnnealingState::new(&graph, &input, &state);
     let mut score_progress_file = File::create("out/optimize_state_score_progress.csv").unwrap();
 
@@ -65,12 +65,13 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
         }
 
         if iter_count % LOOP_INTERVAL == 0 {
-            if log {
-                let actual_score = calc_actual_score_slow(&input, &graph, &state);
+            if true {
+                // let actual_score = calc_actual_score_slow(&input, &graph, &state);
+                let actual_score = -1;
                 writeln!(
                     score_progress_file,
                     "{},{:.2},{}",
-                    state.score,
+                    annealing_state.calc_score(),
                     time::elapsed_seconds(),
                     actual_score,
                 )
@@ -109,13 +110,21 @@ struct AnnealingState {
 impl AnnealingState {
     fn new(graph: &Graph, input: &Input, state: &State) -> AnnealingState {
         // TODO: 定期的に違う点を取り直す?
-        let ps = vec![
-            graph.find_closest_point(&Pos { x: 500, y: 0 }),
-            graph.find_closest_point(&Pos { x: 500, y: 1000 }),
-            graph.find_closest_point(&Pos { x: 500, y: 500 }),
-            graph.find_closest_point(&Pos { x: 0, y: 500 }),
-            graph.find_closest_point(&Pos { x: 1000, y: 500 }),
-        ];
+        let n = if (input.m as f64 / input.n as f64) < 2.5 {
+            8
+        } else {
+            8
+        };
+        let mut ps = vec![graph.find_closest_point(&Pos { x: 500, y: 500 })];
+        for i in 0..n {
+            let d = i as f64 / n as f64 * 2. * std::f64::consts::PI;
+            let p = Pos {
+                x: (f64::cos(d) * 1000. + 500.).round() as i64,
+                y: (f64::sin(d) * 1000. + 500.).round() as i64,
+            };
+            eprintln!("{:?}", p);
+            ps.push(graph.find_closest_point(&p));
+        }
 
         let mut agents = vec![];
         for day in 0..input.d {
