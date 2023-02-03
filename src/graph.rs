@@ -117,48 +117,12 @@ impl Graph {
             }
         }
     }
-
-    pub fn is_connected(&self, when: &Vec<usize>, day: usize) -> bool {
-        // TODO: O(n)のアルゴリズムに書き換える
-        let mut dist = vec![INF; self.n];
-        dist[0] = 0;
-        let mut dist = VecSum::new(dist);
-        self.dijkstra(0, &when, day, &mut dist, &mut vec![NA; self.n]);
-        *dist.vec.iter().max().unwrap() < INF
-    }
-
     pub fn calc_dist_sum(&self, start: usize, when: &Vec<usize>, day: usize) -> i64 {
         let mut dist = vec![INF; self.n];
         dist[start] = 0;
         let mut dist = VecSum::new(dist);
         self.dijkstra(start, &when, day, &mut dist, &mut vec![NA; self.n]);
         dist.sum
-    }
-
-    pub fn get_path(&self, v: usize, u: usize) -> (Vec<usize>, Vec<usize>) {
-        // v -> u の最短路に通る辺のインデックス、通る頂点を返す
-        let mut edge_indicies = vec![];
-        let mut verticies = vec![u];
-        let mut cur = u;
-        while self.par_edge[v][cur] != NA {
-            edge_indicies.push(self.par_edge[v][cur]);
-            cur = self.edges[self.par_edge[v][cur]].v + self.edges[self.par_edge[v][cur]].u - cur;
-            verticies.push(cur);
-        }
-        edge_indicies.reverse();
-        verticies.reverse();
-        (edge_indicies, verticies)
-    }
-
-    pub fn is_encased(&self, when: &Vec<usize>, v: usize) -> bool {
-        let mut is_encased = true;
-        for e in &self.adj[v] {
-            // 2-辺連結なので、self.adj.len() >= 2
-            if when[self.adj[v][0].index] != when[e.index] || when[e.index] == NA {
-                is_encased = false;
-            }
-        }
-        is_encased
     }
 
     pub fn find_closest_point(&self, anchor: &Pos) -> usize {
