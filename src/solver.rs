@@ -20,7 +20,12 @@ pub fn create_random_initial_state(input: &Input) -> State {
 }
 
 pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limit: f64) {
-    let mut annealing_state = AnnealingState::new(&graph, &input, &state);
+    let n = if (input.m as f64 / input.n as f64) < 2.5 {
+        8
+    } else {
+        8
+    };
+    let mut annealing_state = AnnealingState::new(&graph, &input, &state, n);
     let mut score_progress_file = File::create("out/optimize_state_score_progress.csv").unwrap();
 
     const LOOP_INTERVAL: usize = 1000;
@@ -30,14 +35,18 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
     let end_temp: f64 = 100.;
     let mut iter_count = 0;
     let mut progress;
-    let mut temp;
+    let mut temp = 0.;
     let start_time = time::elapsed_seconds();
 
-    while time::elapsed_seconds() < time_limit {
-        // TODO: 定期的にだけ更新する
-        progress = (time::elapsed_seconds() - start_time) / (time_limit - start_time);
-        temp = start_temp.powf(1. - progress) * end_temp.powf(progress);
+    loop {
+        if iter_count % LOOP_INTERVAL == 0 {
+            progress = (time::elapsed_seconds() - start_time) / (time_limit - start_time);
+            temp = start_temp.powf(1. - progress) * end_temp.powf(progress);
 
+            if progress >= 1. {
+                break;
+            }
+        }
         iter_count += 1;
 
         let edge_index = rnd::gen_range(0, input.m);
@@ -65,7 +74,7 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
         }
 
         if iter_count % LOOP_INTERVAL == 0 {
-            if true {
+            if false {
                 // let actual_score = calc_actual_score_slow(&input, &graph, &state);
                 let actual_score = -1;
                 writeln!(
@@ -108,13 +117,7 @@ struct AnnealingState {
 }
 
 impl AnnealingState {
-    fn new(graph: &Graph, input: &Input, state: &State) -> AnnealingState {
-        // TODO: 定期的に違う点を取り直す?
-        let n = if (input.m as f64 / input.n as f64) < 2.5 {
-            8
-        } else {
-            8
-        };
+    fn new(graph: &Graph, input: &Input, state: &State, n: usize) -> AnnealingState {
         let mut ps = vec![graph.find_closest_point(&Pos { x: 500, y: 500 })];
         for i in 0..n {
             let d = i as f64 / n as f64 * 2. * std::f64::consts::PI;

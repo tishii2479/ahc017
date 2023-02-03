@@ -120,7 +120,11 @@ impl Graph {
                 }
                 par_edge[e.to] = e.index;
                 dist.set(e.to, dist.vec[v] + weight);
-                q.push_back((Reverse(dist.vec[e.to]), e.to));
+                if weight < 25_000 {
+                    q.push_front((Reverse(dist.vec[e.to]), e.to));
+                } else {
+                    q.push_back((Reverse(dist.vec[e.to]), e.to));
+                }
             }
         }
     }
