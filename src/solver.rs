@@ -46,7 +46,8 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
                 break;
             }
             if (progress * 10.) as i64 > last_update {
-                last_update = (progress * 10.) as i64 + 1;
+                // 定期的に基点を更新する
+                last_update = (progress * 10.) as i64;
                 annealing_state = AnnealingState::new(&graph, &input, &state, agent_n);
             }
         }
@@ -155,19 +156,25 @@ impl AnnealingState {
     ) -> (f64, Vec<(usize, usize, Reconnection)>) {
         let mut score_diff = 0.;
         let mut reconnections = vec![];
-        for (i, a) in self.agents[change.prev].iter().enumerate() {
-            if let Some(reconnection) = a.estimate_add_edge(change.edge_index, &graph, &state.when)
-            {
-                score_diff += reconnection.score_diff as f64;
-                reconnections.push((change.prev, i, reconnection));
-            }
-        }
         for (i, a) in self.agents[change.next].iter().enumerate() {
+            if score_diff >= INF as f64 {
+                break;
+            }
             if let Some(reconnection) =
                 a.estimate_remove_edge(change.edge_index, &graph, &state.when)
             {
                 score_diff += reconnection.score_diff as f64;
                 reconnections.push((change.next, i, reconnection));
+            }
+        }
+        for (i, a) in self.agents[change.prev].iter().enumerate() {
+            if score_diff >= INF as f64 {
+                break;
+            }
+            if let Some(reconnection) = a.estimate_add_edge(change.edge_index, &graph, &state.when)
+            {
+                score_diff += reconnection.score_diff as f64;
+                reconnections.push((change.prev, i, reconnection));
             }
         }
         (score_diff, reconnections)
@@ -209,15 +216,15 @@ struct Agent {
 
 impl Agent {
     fn new(start: usize, graph: &Graph, when: &Vec<usize>, day: usize) -> Agent {
-        let mut agent = Agent {
+        let (dist, par_edge) = graph.dijkstra(start, when, day);
+        let sz = calc_subtree_size(start, graph, &par_edge);
+        Agent {
             start,
             day,
-            dist: VecSum::new(vec![]),
-            par_edge: vec![],
-            sz: vec![],
-        };
-        agent.recalculate_slow(graph, when);
-        agent
+            dist,
+            par_edge,
+            sz,
+        }
     }
 
     fn estimate_remove_edge(
@@ -429,11 +436,6 @@ impl Agent {
                 }
             }
         }
-    }
-
-    fn recalculate_slow(&mut self, graph: &Graph, when: &Vec<usize>) {
-        (self.dist, self.par_edge) = graph.dijkstra(self.start, when, self.day);
-        self.sz = calc_subtree_size(self.start, graph, &self.par_edge);
     }
 }
 
