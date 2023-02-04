@@ -5,7 +5,6 @@ import pandas as pd
 
 # mypy: ignore-errors
 
-CASE = 100
 TL = 110.0
 
 
@@ -30,7 +29,7 @@ def execute_case(seed):
     return seed, score, N, M, D, K
 
 
-def main():
+def run(case_num: int):
     subprocess.run("cargo build --release", shell=True)
 
     scores = []
@@ -38,7 +37,9 @@ def main():
     total = 0
 
     with multiprocessing.Pool() as pool:
-        for seed, score, N, M, D, K in pool.imap_unordered(execute_case, range(CASE)):
+        for seed, score, N, M, D, K in pool.imap_unordered(
+            execute_case, range(case_num)
+        ):
             count += 1
 
             try:
@@ -80,6 +81,8 @@ def main():
     score_df.average_score = score_df.average_score.apply(lambda x: int(x))
     print(score_df)
 
+    return scores
+
 
 if __name__ == "__main__":
-    main()
+    run(100)

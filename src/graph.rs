@@ -18,7 +18,7 @@ pub struct EdgeData {
 
 impl EdgeData {
     pub fn other_vertex(&self, v: usize) -> usize {
-        assert!(self.u == v || self.v == v);
+        debug_assert!(self.u == v || self.v == v);
         self.u + self.v - v
     }
 }
@@ -35,8 +35,6 @@ pub struct Graph {
     pub adj: Vec<Vec<Edge>>,
     pub pos: Vec<Pos>,
     pub edges: Vec<EdgeData>,
-    pub dist: Vec<VecSum>,
-    pub par_edge: Vec<Vec<usize>>,
 }
 
 impl Graph {
@@ -68,29 +66,7 @@ impl Graph {
             })
             .collect();
 
-        let when = vec![1; edges.len()];
-        let mut graph = Graph {
-            n,
-            adj,
-            pos,
-            edges,
-            dist: vec![],
-            par_edge: vec![],
-        };
-
-        // TODO: いらない?
-        // 前計算
-        for v in 0..n {
-            let mut dist = vec![INF; n];
-            let mut par_edge = vec![NA; n];
-            dist[v] = 0;
-            let mut dist = VecSum::new(dist);
-            graph.dijkstra(v, &when, 0, &mut dist, &mut par_edge);
-            graph.dist.push(dist);
-            graph.par_edge.push(par_edge);
-        }
-
-        graph
+        Graph { n, adj, pos, edges }
     }
 
     pub fn dijkstra(
@@ -129,7 +105,8 @@ impl Graph {
         }
     }
 
-    pub fn calc_dist_sum(&self, start: usize, when: &Vec<usize>, day: usize) -> i64 {
+    #[allow(unused)]
+    pub fn calc_dist_sum_slow(&self, start: usize, when: &Vec<usize>, day: usize) -> i64 {
         let mut dist = vec![INF; self.n];
         dist[start] = 0;
         let mut dist = VecSum::new(dist);

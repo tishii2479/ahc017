@@ -20,7 +20,7 @@ pub fn create_random_initial_state(input: &Input) -> State {
 }
 
 pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limit: f64) {
-    let n = if (input.m as f64 / input.n as f64) < 2.5 {
+    let n = if (input.m as f64 / input.n as f64 * (input.d as f64).powf(0.35)) < 5. {
         8
     } else {
         8
@@ -30,13 +30,15 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
 
     const LOOP_INTERVAL: usize = 1000;
     // TODO: 温度調整
-    // input.nの大きさに従って決めた方が良さそう
-    let start_temp: f64 = 1000000.;
-    let end_temp: f64 = 5000.;
+    // input.nとnの大きさに従って決めた方が良さそう
+    let start_temp: f64 = n as f64 * 1000000.;
+    let end_temp: f64 = n as f64 * 100.;
     let mut iter_count = 0;
     let mut progress;
     let mut temp = 0.;
     let start_time = time::elapsed_seconds();
+
+    let mut adopted_count = 0;
 
     loop {
         if iter_count % LOOP_INTERVAL == 0 {
@@ -70,13 +72,14 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
 
         if adopt && is_valid {
             // 採用
+            adopted_count += 1;
             annealing_state.apply(&reconnections, &graph);
         } else {
             state.update_when(change.edge_index, change.prev);
         }
 
         if iter_count % LOOP_INTERVAL == 0 {
-            if true {
+            if false {
                 // let actual_score = calc_actual_score_slow(&input, &graph, &state);
                 let actual_score = -1;
                 writeln!(
@@ -103,9 +106,8 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
         }
     }
 
-    eprintln!("{:?}", annealing_state.agents[0][0].c);
-
-    eprintln!("[optimize_state] iter_count: {}", iter_count);
+    eprintln!("[optimize_state] adopted_count: {}", adopted_count);
+    eprintln!("[optimize_state] iter_count:    {}", iter_count);
 }
 
 struct Change {
@@ -202,25 +204,19 @@ struct Agent {
     dist: VecSum,
     par_edge: Vec<usize>,
     sz: Vec<usize>,
-    c: Vec<usize>,
 }
 
 impl Agent {
     fn new(start: usize, graph: &Graph, when: &Vec<usize>, day: usize) -> Agent {
-        let mut dist = vec![INF; graph.n];
-        let mut par_edge = vec![NA; graph.n];
-        dist[start] = 0;
-        let mut dist = VecSum::new(dist);
-        graph.dijkstra(start, when, day, &mut dist, &mut par_edge);
-        let sz = calc_subtree_size(start, graph, &par_edge);
-        Agent {
+        let mut agent = Agent {
             start,
             day,
-            dist,
-            par_edge,
-            sz,
-            c: vec![0, 0],
-        }
+            dist: VecSum::new(vec![INF; graph.n]),
+            par_edge: vec![NA; graph.n],
+            sz: vec![],
+        };
+        agent.recalculate_slow(graph, when);
+        agent
     }
 
     fn estimate_remove_edge(
@@ -252,7 +248,7 @@ impl Agent {
         fn dfs(
             v: usize,
             root: usize,
-            edge_path: &mut Vec<usize>,
+            depth: usize,
             when: &Vec<usize>,
             graph: &Graph,
             agent: &Agent,
@@ -299,32 +295,21 @@ impl Agent {
                 } else {
                     // 子孫の頂点に探索を広げる
                     // 深さ3以上は探索しない
-                    if edge_path.len() == 3 {
+                    if depth == 3 {
                         continue;
                     }
-                    edge_path.push(e.index);
-                    dfs(e.to, root, edge_path, when, graph, agent, best_reconnection);
-                    edge_path.pop();
+                    dfs(e.to, root, depth + 1, when, graph, agent, best_reconnection);
                 }
             }
         }
 
-        // rootの距離の増分、rootからnew_rootまでに通る辺、new_rootが新しく繋ぐ辺
         let mut best_reconnection = Reconnection {
             score_diff: INF,
             add_edge: 0,
             remove_edge: 0,
             edge_path: vec![],
         };
-        dfs(
-            root,
-            root,
-            &mut vec![],
-            when,
-            graph,
-            &self,
-            &mut best_reconnection,
-        );
+        dfs(root, root, 0, when, graph, &self, &mut best_reconnection);
 
         Some(best_reconnection)
     }
@@ -446,7 +431,6 @@ impl Agent {
         }
     }
 
-    #[allow(unused)]
     fn recalculate_slow(&mut self, graph: &Graph, when: &Vec<usize>) {
         for i in 0..graph.n {
             self.dist.set(i, INF);
@@ -469,7 +453,7 @@ fn calc_subtree_size(root: usize, graph: &Graph, par_edge: &Vec<usize>) -> Vec<u
 
     fn dfs(v: usize, sz: &mut Vec<usize>, graph: &Graph, par_edge: &Vec<usize>) {
         sz[v] += 1;
-        assert!(sz[v] == 1);
+        debug_assert!(sz[v] == 1);
         for e in &graph.adj[v] {
             // 子供にだけ動く
             if par_edge[e.to] != e.index {
@@ -503,12 +487,13 @@ pub fn calc_actual_score_slow(input: &Input, graph: &Graph, state: &State) -> i6
     let mut fk_sum = 0.;
     let mut base_dist_sum = 0;
     for v in 0..input.n {
-        base_dist_sum += graph.dist[v].sum;
+        // 全ての辺が使える日で計算する
+        base_dist_sum += graph.calc_dist_sum_slow(v, &state.when, input.d);
     }
     for day in 0..input.d {
         let mut dist_sum = 0;
         for v in 0..input.n {
-            dist_sum += graph.calc_dist_sum(v, &state.when, day);
+            dist_sum += graph.calc_dist_sum_slow(v, &state.when, day);
         }
         let fk = (dist_sum - base_dist_sum) as f64 / (input.n * (input.n - 1)) as f64;
         fk_sum += fk;
