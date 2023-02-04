@@ -31,8 +31,8 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
     const LOOP_INTERVAL: usize = 1000;
     // TODO: 温度調整
     // input.nの大きさに従って決めた方が良さそう
-    let start_temp: f64 = 100000.;
-    let end_temp: f64 = 100.;
+    let start_temp: f64 = 1000000.;
+    let end_temp: f64 = 5000.;
     let mut iter_count = 0;
     let mut progress;
     let mut temp = 0.;
@@ -76,7 +76,7 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
         }
 
         if iter_count % LOOP_INTERVAL == 0 {
-            if false {
+            if true {
                 // let actual_score = calc_actual_score_slow(&input, &graph, &state);
                 let actual_score = -1;
                 writeln!(
@@ -395,15 +395,6 @@ impl Agent {
         let old_root = remove_edge.other_vertex(cur);
         assert_eq!(self.par_edge[old_root], remove_edge.index);
         let subtree_size = self.sz[old_root];
-        // dbg!(
-        //     remove_edge,
-        //     add_edge,
-        //     cur,
-        //     old_root,
-        //     self.sz[cur],
-        //     self.sz[old_root],
-        //     self.par_edge[old_root]
-        // );
         while cur != self.start {
             self.sz[cur] -= subtree_size;
             // dbg!(cur, par_vertex(cur, graph, &self.par_edge));
@@ -559,18 +550,7 @@ impl Agent {
 
         // 全て再計算する
         // TODO: たまに強制的に再計算する or 最後の方だけ常に再計算する
-        for i in 0..graph.n {
-            self.dist.set(i, INF);
-            self.par_edge[i] = NA;
-        }
-        self.dist.set(self.start, 0);
-        graph.dijkstra(
-            self.start,
-            when,
-            self.day,
-            &mut self.dist,
-            &mut self.par_edge,
-        );
+        self.recalculate_slow(graph, when);
         self.c[1] += 1;
     }
 
@@ -608,6 +588,21 @@ impl Agent {
                 st.push(e.to);
             }
         }
+    }
+
+    fn recalculate_slow(&mut self, graph: &Graph, when: &Vec<usize>) {
+        for i in 0..graph.n {
+            self.dist.set(i, INF);
+            self.par_edge[i] = NA;
+        }
+        self.dist.set(self.start, 0);
+        graph.dijkstra(
+            self.start,
+            when,
+            self.day,
+            &mut self.dist,
+            &mut self.par_edge,
+        );
     }
 }
 
