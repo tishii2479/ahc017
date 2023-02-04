@@ -33,9 +33,6 @@ fn main() {
     // 初期解の生成
     let mut state = create_random_initial_state(&input);
 
-    // TODO: 必ず連結にする?
-    // connect_all_state();
-
     // 最適化
     optimize_state(&mut state, &input, &graph, TIME_LIMIT);
 
@@ -44,5 +41,8 @@ fn main() {
 
     eprintln!("{:?}", state.repair_counts);
     eprintln!("Time elapsed = {}", time::elapsed_seconds());
-    eprintln!("Score = {}", calc_actual_score_slow(&input, &graph, &state));
+    eprintln!(
+        "Score = {}",
+        calc_actual_score_slow(&input, &graph, &state, input.n)
+    );
 }

@@ -20,19 +20,15 @@ pub fn create_random_initial_state(input: &Input) -> State {
 }
 
 pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limit: f64) {
-    let n = if (input.m as f64 / input.n as f64 * (input.d as f64).powf(0.35)) < 5. {
-        8
-    } else {
-        8
-    };
-    let mut annealing_state = AnnealingState::new(&graph, &input, &state, n);
+    let agent_n = 8;
+    let mut annealing_state = AnnealingState::new(&graph, &input, &state, agent_n);
     let mut score_progress_file = File::create("out/optimize_state_score_progress.csv").unwrap();
 
     const LOOP_INTERVAL: usize = 1000;
     // TODO: 温度調整
     // input.nとnの大きさに従って決めた方が良さそう
-    let start_temp: f64 = n as f64 * 1000000.;
-    let end_temp: f64 = n as f64 * 100.;
+    let start_temp: f64 = agent_n as f64 * 1e6;
+    let end_temp: f64 = agent_n as f64 * 1e2;
     let mut iter_count = 0;
     let mut progress;
     let mut temp = 0.;
@@ -46,12 +42,12 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
             progress = (time::elapsed_seconds() - start_time) / (time_limit - start_time);
             temp = start_temp.powf(1. - progress) * end_temp.powf(progress);
 
-            if (progress * 10.).round() as i64 > last_update {
-                last_update = (progress * 10.).round() as i64 + 1;
-                annealing_state = AnnealingState::new(&graph, &input, &state, n);
-            }
             if progress >= 1. {
                 break;
+            }
+            if (progress * 10.) as i64 > last_update {
+                last_update = (progress * 10.) as i64 + 1;
+                annealing_state = AnnealingState::new(&graph, &input, &state, agent_n);
             }
         }
         iter_count += 1;
@@ -85,7 +81,7 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
 
         if iter_count % LOOP_INTERVAL == 0 {
             if false {
-                // let actual_score = calc_actual_score_slow(&input, &graph, &state);
+                // let actual_score = calc_actual_score_slow(&input, &graph, &state, 50);
                 let actual_score = -1;
                 writeln!(
                     score_progress_file,
@@ -99,7 +95,7 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
                     "[{:.2}] {} {}",
                     time::elapsed_seconds(),
                     annealing_state.calc_score(),
-                    actual_score
+                    actual_score,
                 );
             } else {
                 eprintln!(
@@ -301,7 +297,7 @@ impl Agent {
                 } else {
                     // 子孫の頂点に探索を広げる
                     // 深さ3以上は探索しない
-                    if depth == 3 {
+                    if depth == 2 {
                         continue;
                     }
                     dfs(e.to, root, depth + 1, when, graph, agent, best_reconnection);
@@ -495,26 +491,26 @@ fn par_vertex(v: usize, graph: &Graph, par_edge: &Vec<usize>) -> usize {
 }
 
 #[allow(unused)]
-pub fn calc_actual_score_slow(input: &Input, graph: &Graph, state: &State) -> i64 {
+pub fn calc_actual_score_slow(input: &Input, graph: &Graph, state: &State, n: usize) -> i64 {
     let mut fk_sum = 0.;
     let mut base_dist_sum = 0;
-    for v in 0..input.n {
+    for v in 0..n {
         // 全ての辺が使える日で計算する
         base_dist_sum += graph.calc_dist_sum_slow(v, &state.when, input.d);
     }
     for day in 0..input.d {
         let mut dist_sum = 0;
-        for v in 0..input.n {
+        for v in 0..n {
             dist_sum += graph.calc_dist_sum_slow(v, &state.when, day);
         }
-        let fk = (dist_sum - base_dist_sum) as f64 / (input.n * (input.n - 1)) as f64;
+        let fk = (dist_sum - base_dist_sum) as f64 / (n * (input.n - 1)) as f64;
         fk_sum += fk;
     }
     (1e3 * (fk_sum / input.d as f64)).round() as i64
 }
 
 fn select_next(edge_index: usize, graph: &Graph, when: &Vec<usize>, d: usize) -> usize {
-    if rnd::nextf() < 0.5 {
+    if rnd::nextf() < 0.8 {
         // 頂点に繋がっている工事を伸ばす
         let edge = &graph.edges[edge_index];
         let s = rnd::gen_range(0, graph.adj[edge.u].len() + graph.adj[edge.v].len());
