@@ -28,7 +28,7 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
     let mut annealing_state = AnnealingState::new(&graph, &input, &state, n);
     let mut score_progress_file = File::create("out/optimize_state_score_progress.csv").unwrap();
 
-    const LOOP_INTERVAL: usize = 10000;
+    const LOOP_INTERVAL: usize = 1000;
     // TODO: 温度調整
     // input.nとnの大きさに従って決めた方が良さそう
     let start_temp: f64 = n as f64 * 1000000.;
@@ -36,7 +36,7 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
     let mut iter_count = 0;
     let mut progress;
     let mut temp = 0.;
-    let mut last_update = 0;
+    let mut last_update = 1;
     let start_time = time::elapsed_seconds();
 
     let mut adopted_count = 0;
@@ -270,7 +270,7 @@ impl Agent {
                     continue;
                 }
                 // rootの子孫ではなく、繋がっていない頂点が隣接していれば繋げることができる
-                if !is_child_vertex(e.to, root, &graph, &agent.par_edge) {
+                if !is_child_vertex(e.to, root, &graph, &agent.par_edge, &agent.dist.vec) {
                     // 繋げることができる
                     // 増える距離を計算する
                     let mut score_diff = 0;
@@ -475,9 +475,15 @@ fn calc_subtree_size(root: usize, graph: &Graph, par_edge: &Vec<usize>) -> Vec<u
     sz
 }
 
-fn is_child_vertex(v: usize, par: usize, graph: &Graph, par_edge: &Vec<usize>) -> bool {
+fn is_child_vertex(
+    v: usize,
+    par: usize,
+    graph: &Graph,
+    par_edge: &Vec<usize>,
+    dist: &Vec<i64>,
+) -> bool {
     let mut v = v;
-    while par_edge[v] != NA && v != par {
+    while par_edge[v] != NA && v != par && dist[v] > dist[par] {
         // 親の頂点を取得する
         v = graph.edges[par_edge[v]].u + graph.edges[par_edge[v]].v - v;
     }
