@@ -144,7 +144,6 @@ impl AnnealingState {
             }
             agents.push(a);
         }
-
         AnnealingState { agents }
     }
 
@@ -213,8 +212,8 @@ impl Agent {
         let mut agent = Agent {
             start,
             day,
-            dist: VecSum::new(vec![INF; graph.n]),
-            par_edge: vec![NA; graph.n],
+            dist: VecSum::new(vec![]),
+            par_edge: vec![],
             sz: vec![],
         };
         agent.recalculate_slow(graph, when);
@@ -384,7 +383,6 @@ impl Agent {
         let subtree_size = self.sz[old_root];
         while cur != self.start {
             self.sz[cur] -= subtree_size;
-            // dbg!(cur, par_vertex(cur, graph, &self.par_edge));
             cur = par_vertex(cur, graph, &self.par_edge);
         }
         self.sz[self.start] -= subtree_size;
@@ -434,18 +432,7 @@ impl Agent {
     }
 
     fn recalculate_slow(&mut self, graph: &Graph, when: &Vec<usize>) {
-        for i in 0..graph.n {
-            self.dist.set(i, INF);
-            self.par_edge[i] = NA;
-        }
-        self.dist.set(self.start, 0);
-        graph.dijkstra(
-            self.start,
-            when,
-            self.day,
-            &mut self.dist,
-            &mut self.par_edge,
-        );
+        (self.dist, self.par_edge) = graph.dijkstra(self.start, when, self.day);
         self.sz = calc_subtree_size(self.start, graph, &self.par_edge);
     }
 }

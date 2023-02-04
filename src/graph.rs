@@ -69,15 +69,11 @@ impl Graph {
         Graph { n, adj, pos, edges }
     }
 
-    pub fn dijkstra(
-        &self,
-        start: usize,
-        when: &Vec<usize>,
-        day: usize,
-        dist: &mut VecSum,
-        par_edge: &mut Vec<usize>,
-    ) {
+    pub fn dijkstra(&self, start: usize, when: &Vec<usize>, day: usize) -> (VecSum, Vec<usize>) {
+        let mut dist = VecSum::new(vec![INF; self.n]);
+        let mut par_edge = vec![NA; self.n];
         let mut q = VecDeque::new();
+        dist.set(start, 0);
         q.push_back((Reverse(0), start));
 
         while let Some((Reverse(d), v)) = q.pop_front() {
@@ -103,14 +99,13 @@ impl Graph {
                 }
             }
         }
+
+        (dist, par_edge)
     }
 
     #[allow(unused)]
     pub fn calc_dist_sum_slow(&self, start: usize, when: &Vec<usize>, day: usize) -> i64 {
-        let mut dist = vec![INF; self.n];
-        dist[start] = 0;
-        let mut dist = VecSum::new(dist);
-        self.dijkstra(start, &when, day, &mut dist, &mut vec![NA; self.n]);
+        let (dist, _) = self.dijkstra(start, &when, day);
         dist.sum
     }
 
