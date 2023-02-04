@@ -286,7 +286,8 @@ impl Agent {
                         edge_path.push(par_edge.index);
                         cur = par_edge.other_vertex(cur);
                     }
-
+                    score_diff +=
+                        (agent.sz[cur] - last_size) as i64 * (cur_dist - agent.dist.vec[cur]);
                     edge_path.reverse();
 
                     if score_diff < best_reconnection.score_diff {
@@ -350,7 +351,7 @@ impl Agent {
         let mut score_diff = self.sz[root] as i64 * dist_diff;
         let mut edge_path = vec![];
         let mut cur = root;
-        let mut cur_dist = self.dist.vec[cur];
+        let mut cur_dist = self.dist.vec[edge.other_vertex(cur)] + edge.weight;
 
         while cur != self.start {
             let par_edge = &graph.edges[self.par_edge[cur]];
@@ -360,9 +361,9 @@ impl Agent {
                 par_edge.weight
             };
             let par = par_edge.other_vertex(cur);
-            // 更新されなくなったら終了
             cur_dist += weight;
             let par_dist_diff = cur_dist - self.dist.vec[par];
+            // 更新されなくなったら終了
             if par_dist_diff >= 0 {
                 break;
             }
@@ -370,6 +371,7 @@ impl Agent {
             edge_path.push(par_edge.index);
             cur = par;
         }
+        edge_path.reverse();
 
         let reconnection = Reconnection {
             score_diff,
@@ -802,19 +804,18 @@ fn test_reconnection() {
             (0, 0),
         ],
     );
-    let mut when = vec![0; 8];
-    when[7] = 1;
+    let when = vec![0; 8];
     let mut agents = vec![
         Agent::new(s, &graph, &when, 0),
         Agent::new(s, &graph, &when, 1),
     ];
-    let reconnection = Reconnection {
-        score_diff: 0,
-        add_edge: 7,
-        remove_edge: 0,
-        edge_path: vec![3, 6],
-    };
     dbg!(&agents[1]);
+    let reconnection = agents[1].estimate_remove_edge(0, &graph, &when).unwrap();
+    dbg!(&reconnection);
+    agents[1].apply_reconnection(&reconnection, &graph);
+    dbg!(&agents[1]);
+    let reconnection = agents[1].estimate_add_edge(0, &graph, &when).unwrap();
+    dbg!(&reconnection);
     agents[1].apply_reconnection(&reconnection, &graph);
     dbg!(&agents[1]);
 }
