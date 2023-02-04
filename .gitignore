@@ -3,3 +3,4 @@ tools/
 out/
 tmp/
 __pycache__/
+notebooks/
