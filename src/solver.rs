@@ -61,7 +61,8 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
             next,
             edge_index,
         };
-        let score_diff = annealing_state.apply(&change, state, &graph);
+        state.update_when(change.edge_index, change.next);
+        let (score_diff, reconnections) = annealing_state.estimate(&change, state, &graph);
 
         let is_valid = *state.repair_counts.iter().max().unwrap() <= input.k;
         let new_score = state.score + score_diff;
@@ -69,8 +70,9 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
 
         if adopt && is_valid {
             // 採用
+            annealing_state.apply(&reconnections, &graph);
         } else {
-            annealing_state.reverse(&change, state, &graph);
+            state.update_when(change.edge_index, change.prev);
         }
 
         if iter_count % LOOP_INTERVAL == 0 {
@@ -142,34 +144,35 @@ impl AnnealingState {
         AnnealingState { agents }
     }
 
-    fn apply(&mut self, change: &Change, state: &mut State, graph: &Graph) -> f64 {
+    fn estimate(
+        &self,
+        change: &Change,
+        state: &State,
+        graph: &Graph,
+    ) -> (f64, Vec<(usize, usize, Reconnection)>) {
         let mut score_diff = 0.;
-
-        for a in &self.agents[change.prev] {
-            score_diff -= a.dist.sum as f64;
+        let mut reconnections = vec![];
+        for (i, a) in self.agents[change.prev].iter().enumerate() {
+            if let Some(reconnection) = a.estimate_add_edge(change.edge_index, &graph, &state.when)
+            {
+                score_diff += reconnection.score_diff as f64;
+                reconnections.push((change.prev, i, reconnection));
+            }
         }
-        for a in &self.agents[change.next] {
-            score_diff -= a.dist.sum as f64;
+        for (i, a) in self.agents[change.next].iter().enumerate() {
+            if let Some(reconnection) =
+                a.estimate_remove_edge(change.edge_index, &graph, &state.when)
+            {
+                score_diff += reconnection.score_diff as f64;
+                reconnections.push((change.next, i, reconnection));
+            }
         }
-        state.update_when(change.edge_index, change.next);
-        for a in &mut self.agents[change.prev] {
-            a.add_edge(change.edge_index, &graph, &state.when);
-            score_diff += a.dist.sum as f64;
-        }
-        for a in &mut self.agents[change.next] {
-            a.remove_edge(change.edge_index, &graph, &state.when);
-            score_diff += a.dist.sum as f64;
-        }
-        score_diff
+        (score_diff, reconnections)
     }
 
-    fn reverse(&mut self, change: &Change, state: &mut State, graph: &Graph) {
-        state.update_when(change.edge_index, change.prev);
-        for a in &mut self.agents[change.prev] {
-            a.remove_edge(change.edge_index, &graph, &state.when);
-        }
-        for a in &mut self.agents[change.next] {
-            a.add_edge(change.edge_index, &graph, &state.when);
+    fn apply(&mut self, reconnections: &Vec<(usize, usize, Reconnection)>, graph: &Graph) {
+        for (day, agent_index, reconnection) in reconnections {
+            self.agents[*day][*agent_index].apply_reconnection(reconnection, graph);
         }
     }
 
@@ -185,27 +188,268 @@ impl AnnealingState {
 }
 
 #[derive(Debug)]
+struct Reconnection {
+    score_diff: i64,
+    add_edge: usize,
+    remove_edge: usize,
+    edge_path: Vec<usize>,
+}
+
+#[derive(Debug)]
 struct Agent {
     start: usize,
     day: usize,
     dist: VecSum,
     par_edge: Vec<usize>,
+    sz: Vec<usize>,
     c: Vec<usize>,
 }
 
 impl Agent {
     fn new(start: usize, graph: &Graph, when: &Vec<usize>, day: usize) -> Agent {
-        let mut dist = vec![INF; graph.adj.len()];
-        let mut par_edge = vec![NA; graph.adj.len()];
+        let mut dist = vec![INF; graph.n];
+        let mut par_edge = vec![NA; graph.n];
         dist[start] = 0;
         let mut dist = VecSum::new(dist);
         graph.dijkstra(start, when, day, &mut dist, &mut par_edge);
+        let sz = calc_subtree_size(start, graph, &par_edge);
         Agent {
             start,
             day,
             dist,
             par_edge,
+            sz,
             c: vec![0, 0],
+        }
+    }
+
+    fn estimate_remove_edge(
+        &self,
+        edge_index: usize,
+        graph: &Graph,
+        when: &Vec<usize>,
+    ) -> Option<Reconnection> {
+        let edge = &graph.edges[edge_index];
+        let root = if self.par_edge[edge.v] != NA
+            && graph.edges[self.par_edge[edge.v]].has_vertex(edge.u)
+        {
+            // u -> v の最短路が壊れた
+            edge.v
+        } else if self.par_edge[edge.u] != NA
+            && graph.edges[self.par_edge[edge.u]].has_vertex(edge.v)
+        {
+            // v -> u の最短路が壊れた
+            edge.u
+        } else {
+            // 最短路に含まれていないので何もしない
+            return None;
+        };
+
+        // rootから距離が3以下の頂点を探す
+        // 各頂点について、rootの子孫ではなく、繋がっていない頂点が隣接していて、工事されていない辺があれば、
+        // それに繋げることができる
+        // rootの距離の増分が最小の頂点を探す
+        fn dfs(
+            v: usize,
+            root: usize,
+            edge_path: &mut Vec<usize>,
+            when: &Vec<usize>,
+            graph: &Graph,
+            agent: &Agent,
+            best_reconnection: &mut Reconnection,
+        ) {
+            for e in &graph.adj[v] {
+                // 工事されている辺は通らない
+                if when[e.index] == agent.day {
+                    continue;
+                }
+                // 親には遡らない
+                if par_vertex(v, graph, &agent.par_edge) == e.to {
+                    continue;
+                }
+                // rootの子孫ではなく、繋がっていない頂点が隣接していれば繋げることができる
+                if !is_child_vertex(e.to, root, &graph, &agent.par_edge) {
+                    // 繋げることができる
+                    // 増える距離を計算する
+                    let mut score_diff = 0;
+                    let mut last_size = 0;
+                    let mut edge_path = vec![];
+                    let mut cur = v;
+                    let mut cur_dist = agent.dist.vec[e.to] + e.weight;
+
+                    while cur != root {
+                        score_diff +=
+                            (agent.sz[cur] - last_size) as i64 * (cur_dist - agent.dist.vec[cur]);
+                        last_size = agent.sz[cur];
+                        let par_edge = &graph.edges[agent.par_edge[cur]];
+                        cur_dist += par_edge.weight;
+                        edge_path.push(par_edge.index);
+                        cur = par_edge.other_vertex(cur);
+                    }
+
+                    edge_path.reverse();
+
+                    if score_diff < best_reconnection.score_diff {
+                        best_reconnection.score_diff = score_diff;
+                        best_reconnection.add_edge = e.index;
+                        best_reconnection.remove_edge = agent.par_edge[cur];
+                        best_reconnection.edge_path = edge_path;
+                    }
+                } else {
+                    // 子孫の頂点に探索を広げる
+                    // 深さ3以上は探索しない
+                    if edge_path.len() == 3 {
+                        continue;
+                    }
+                    edge_path.push(e.index);
+                    dfs(e.to, root, edge_path, when, graph, agent, best_reconnection);
+                    edge_path.pop();
+                }
+            }
+        }
+
+        // rootの距離の増分、rootからnew_rootまでに通る辺、new_rootが新しく繋ぐ辺
+        let mut best_reconnection = Reconnection {
+            score_diff: INF,
+            add_edge: 0,
+            remove_edge: 0,
+            edge_path: vec![],
+        };
+        dfs(
+            root,
+            root,
+            &mut vec![],
+            when,
+            graph,
+            &self,
+            &mut best_reconnection,
+        );
+
+        Some(best_reconnection)
+    }
+
+    fn estimate_add_edge(
+        &self,
+        edge_index: usize,
+        graph: &Graph,
+        when: &Vec<usize>,
+    ) -> Option<Reconnection> {
+        let edge = &graph.edges[edge_index];
+        let root = if self.dist.vec[edge.u] + edge.weight < self.dist.vec[edge.v] {
+            // edge.vに繋がっている頂点をdfsして更新し続ける
+            edge.v
+        } else if self.dist.vec[edge.v] + edge.weight < self.dist.vec[edge.u] {
+            // edge.uに繋がっている頂点をdfsして更新し続ける
+            edge.u
+        } else {
+            // edgeの追加による最短路の更新がないので何もしない
+            return None;
+        };
+
+        let dist_diff = self.dist.vec[edge.other_vertex(root)] + edge.weight - self.dist.vec[root];
+        let mut score_diff = self.sz[root] as i64 * dist_diff;
+        let mut edge_path = vec![];
+        let mut cur = root;
+        let mut cur_dist = self.dist.vec[cur];
+
+        while cur != self.start {
+            let par_edge = &graph.edges[self.par_edge[cur]];
+            let weight = if when[par_edge.index] == self.day {
+                PENALTY
+            } else {
+                par_edge.weight
+            };
+            let par = par_edge.other_vertex(cur);
+            // 更新されなくなったら終了
+            cur_dist += weight;
+            let par_dist_diff = cur_dist - self.dist.vec[par];
+            if par_dist_diff >= 0 {
+                break;
+            }
+            score_diff += (self.sz[par] - self.sz[cur]) as i64 * par_dist_diff;
+            edge_path.push(par_edge.index);
+            cur = par;
+        }
+
+        let reconnection = Reconnection {
+            score_diff,
+            add_edge: edge_index,
+            remove_edge: self.par_edge[cur],
+            edge_path,
+        };
+
+        Some(reconnection)
+    }
+
+    fn apply_reconnection(&mut self, reconnection: &Reconnection, graph: &Graph) {
+        // 削除する辺の親とその祖先のサイズを更新する
+        let add_edge = &graph.edges[reconnection.add_edge];
+        let remove_edge = &graph.edges[reconnection.remove_edge];
+        let mut cur = if self.par_edge[remove_edge.u] == remove_edge.index {
+            remove_edge.v
+        } else {
+            remove_edge.u
+        };
+        let old_root = remove_edge.other_vertex(cur);
+        assert_eq!(self.par_edge[old_root], remove_edge.index);
+        let subtree_size = self.sz[old_root];
+        // dbg!(
+        //     remove_edge,
+        //     add_edge,
+        //     cur,
+        //     old_root,
+        //     self.sz[cur],
+        //     self.sz[old_root],
+        //     self.par_edge[old_root]
+        // );
+        while cur != self.start {
+            self.sz[cur] -= subtree_size;
+            // dbg!(cur, par_vertex(cur, graph, &self.par_edge));
+            cur = par_vertex(cur, graph, &self.par_edge);
+        }
+        self.sz[self.start] -= subtree_size;
+
+        // 親の更新
+        let mut cur = old_root;
+        let mut add_size = 0;
+        for e in &reconnection.edge_path {
+            self.par_edge[cur] = *e;
+            let par = graph.edges[*e].other_vertex(cur);
+            // サイズの更新
+            self.sz[cur] += add_size;
+            self.sz[cur] -= self.sz[par];
+            add_size = self.sz[cur];
+            cur = par;
+        }
+
+        // 追加する辺の親を更新する
+        let new_root = cur;
+        self.sz[new_root] = subtree_size;
+        self.par_edge[cur] = reconnection.add_edge;
+
+        // 追加した辺の親とその祖先のサイズを更新する
+        let mut cur = add_edge.other_vertex(cur);
+        while cur != self.start {
+            self.sz[cur] += subtree_size;
+            cur = par_vertex(cur, graph, &self.par_edge);
+        }
+        self.sz[self.start] += subtree_size;
+
+        // subtreeの距離の更新
+        self.dist.set(
+            new_root,
+            self.dist.vec[par_vertex(new_root, graph, &self.par_edge)] + add_edge.weight,
+        );
+
+        let mut st = vec![new_root];
+        while st.len() > 0 {
+            let v = st.pop().unwrap();
+            for e in &graph.adj[v] {
+                if self.par_edge[e.to] != NA && graph.edges[self.par_edge[e.to]].has_vertex(v) {
+                    self.dist.set(e.to, self.dist.vec[v] + e.weight);
+                    st.push(e.to);
+                }
+            }
         }
     }
 
@@ -225,19 +469,6 @@ impl Agent {
             // 最短路に含まれていないので何もしない
             return;
         };
-
-        fn is_child_vertex(v: usize, par: usize, graph: &Graph, par_edge: &Vec<usize>) -> bool {
-            let mut v = v;
-            while par_edge[v] != NA && v != par {
-                // 親の頂点を取得する
-                v = graph.edges[par_edge[v]].u + graph.edges[par_edge[v]].v - v;
-            }
-            v == par
-        }
-
-        fn par_vertex(v: usize, graph: &Graph, par_edge: &Vec<usize>) -> usize {
-            graph.edges[par_edge[v]].other_vertex(v)
-        }
 
         // rootから距離が3以下の頂点を探す
         // 各頂点について、rootの子孫ではなく、繋がっていない頂点が隣接していて、工事されていない辺があれば、
@@ -326,7 +557,7 @@ impl Agent {
 
         // 全て再計算する
         // TODO: たまに強制的に再計算する or 最後の方だけ常に再計算する
-        for i in 0..graph.adj.len() {
+        for i in 0..graph.n {
             self.dist.set(i, INF);
             self.par_edge[i] = NA;
         }
@@ -376,6 +607,40 @@ impl Agent {
             }
         }
     }
+}
+
+fn calc_subtree_size(root: usize, graph: &Graph, par_edge: &Vec<usize>) -> Vec<usize> {
+    let mut sz = vec![0; graph.n];
+
+    fn dfs(v: usize, sz: &mut Vec<usize>, graph: &Graph, par_edge: &Vec<usize>) {
+        sz[v] += 1;
+        assert!(sz[v] == 1);
+        for e in &graph.adj[v] {
+            // 子供にだけ動く
+            if par_edge[e.to] != e.index {
+                continue;
+            }
+            dfs(e.to, sz, graph, par_edge);
+            sz[v] += sz[e.to];
+        }
+    }
+
+    dfs(root, &mut sz, graph, par_edge);
+
+    sz
+}
+
+fn is_child_vertex(v: usize, par: usize, graph: &Graph, par_edge: &Vec<usize>) -> bool {
+    let mut v = v;
+    while par_edge[v] != NA && v != par {
+        // 親の頂点を取得する
+        v = graph.edges[par_edge[v]].u + graph.edges[par_edge[v]].v - v;
+    }
+    v == par
+}
+
+fn par_vertex(v: usize, graph: &Graph, par_edge: &Vec<usize>) -> usize {
+    graph.edges[par_edge[v]].other_vertex(v)
 }
 
 pub fn calc_actual_score_slow(input: &Input, graph: &Graph, state: &State) -> i64 {
@@ -508,4 +773,48 @@ fn test_agent() {
         calc_expected(&graph, &when, n, s, 1),
         agents[1].dist.sum as f64
     );
+}
+
+#[test]
+fn test_reconnection() {
+    let n = 8;
+    let s = 0;
+    let graph = Graph::new(
+        n,
+        vec![
+            (0, 1, 1),
+            (0, 2, 1),
+            (1, 3, 1),
+            (1, 4, 1),
+            (2, 5, 1),
+            (4, 6, 1),
+            (4, 7, 1),
+            (5, 7, 1),
+        ],
+        vec![
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+        ],
+    );
+    let mut when = vec![0; 8];
+    when[7] = 1;
+    let mut agents = vec![
+        Agent::new(s, &graph, &when, 0),
+        Agent::new(s, &graph, &when, 1),
+    ];
+    let reconnection = Reconnection {
+        score_diff: 0,
+        add_edge: 7,
+        remove_edge: 0,
+        edge_path: vec![3, 6],
+    };
+    dbg!(&agents[1]);
+    agents[1].apply_reconnection(&reconnection, &graph);
+    dbg!(&agents[1]);
 }

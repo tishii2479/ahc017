@@ -81,8 +81,8 @@ impl Graph {
         // TODO: いらない?
         // 前計算
         for v in 0..n {
-            let mut dist = vec![INF; graph.adj.len()];
-            let mut par_edge = vec![NA; graph.adj.len()];
+            let mut dist = vec![INF; n];
+            let mut par_edge = vec![NA; n];
             dist[v] = 0;
             let mut dist = VecSum::new(dist);
             graph.dijkstra(v, &when, 0, &mut dist, &mut par_edge);
@@ -128,6 +128,7 @@ impl Graph {
             }
         }
     }
+
     pub fn calc_dist_sum(&self, start: usize, when: &Vec<usize>, day: usize) -> i64 {
         let mut dist = vec![INF; self.n];
         dist[start] = 0;
