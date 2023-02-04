@@ -28,7 +28,7 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
     let mut annealing_state = AnnealingState::new(&graph, &input, &state, n);
     let mut score_progress_file = File::create("out/optimize_state_score_progress.csv").unwrap();
 
-    const LOOP_INTERVAL: usize = 1000;
+    const LOOP_INTERVAL: usize = 10000;
     // TODO: 温度調整
     // input.nとnの大きさに従って決めた方が良さそう
     let start_temp: f64 = n as f64 * 1000000.;
@@ -36,6 +36,7 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
     let mut iter_count = 0;
     let mut progress;
     let mut temp = 0.;
+    let mut last_update = 0;
     let start_time = time::elapsed_seconds();
 
     let mut adopted_count = 0;
@@ -45,6 +46,10 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
             progress = (time::elapsed_seconds() - start_time) / (time_limit - start_time);
             temp = start_temp.powf(1. - progress) * end_temp.powf(progress);
 
+            if (progress * 10.).round() as i64 > last_update {
+                last_update = (progress * 10.).round() as i64 + 1;
+                annealing_state = AnnealingState::new(&graph, &input, &state, n);
+            }
             if progress >= 1. {
                 break;
             }
@@ -123,8 +128,9 @@ struct AnnealingState {
 impl AnnealingState {
     fn new(graph: &Graph, input: &Input, state: &State, n: usize) -> AnnealingState {
         let mut ps = vec![graph.find_closest_point(&Pos { x: 500, y: 500 })];
+        let a = rnd::nextf() * 2. * std::f64::consts::PI;
         for i in 0..n {
-            let d = i as f64 / n as f64 * 2. * std::f64::consts::PI;
+            let d = i as f64 / n as f64 * 2. * std::f64::consts::PI + a;
             let p = Pos {
                 x: (f64::cos(d) * 1000. + 500.).round() as i64,
                 y: (f64::sin(d) * 1000. + 500.).round() as i64,

@@ -36,7 +36,7 @@ def visualize_score_progress(score_log: str) -> None:
     #     lambda x: calc_actual_score(in_file, x)
     # )
     if score_log == "optimize_state_score_progress":
-        log_df = log_df[20:]
+        log_df = log_df[100:]
     print(log_df)
     log_df.actual_score = log_df.actual_score.apply(lambda x: min(1e10, x))
 

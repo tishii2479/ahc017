@@ -1,3 +1,4 @@
+import math
 import multiprocessing
 import subprocess
 
@@ -66,23 +67,15 @@ def run(case_num: int):
     ave = total / count
     print(f"ave: {ave:,.2f}")
 
-    d_div = range(5, 31, 3)
-    data = [0] * len(d_div)
-    counts = [0] * len(d_div)
-    for (score, seed, N, M, D, K) in scores:
-        d_idx = min(D // 3 - 1, len(d_div) - 1)
-        data[d_idx] += score
-        counts[d_idx] += 1
+    df = pd.DataFrame(scores, columns=["score", "case", "n", "m", "d", "k"])
+    df["m/n"] = df.apply(lambda row: row["m"] / row["n"], axis=1)
+    df["eval"] = df.apply(lambda row: row["m/n"] * math.pow(row["d"], 0.35), axis=1)
+    df["rank"] = df["eval"] // 1
+    df.groupby("rank").score.mean().map(int)
 
-    for i in range(len(d_div)):
-        data[i] /= counts[i]
-
-    score_df = pd.DataFrame(data, index=d_div, columns=["average_score"])
-    score_df.average_score = score_df.average_score.apply(lambda x: int(x))
-    print(score_df)
-
-    return scores
+    return df
 
 
 if __name__ == "__main__":
-    run(100)
+    df = run(100)
+    print(df.groupby("rank").score.mean().map(int))
