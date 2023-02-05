@@ -63,7 +63,7 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
         let (score_diff, reconnections) = annealing_state.estimate(&change, state, &graph);
 
         let is_valid = *state.repair_counts.iter().max().unwrap() <= input.k;
-        let adopt = (-score_diff / temp).exp() > rnd::nextf();
+        let adopt = (-score_diff as f64 / temp).exp() > rnd::nextf();
 
         if adopt && is_valid {
             // 採用
@@ -131,27 +131,27 @@ impl AnnealingState {
         change: &Change,
         state: &State,
         graph: &Graph,
-    ) -> (f64, Vec<(usize, usize, Reconnection)>) {
-        let mut score_diff = 0.;
+    ) -> (i64, Vec<(usize, usize, Reconnection)>) {
+        let mut score_diff = 0;
         let mut reconnections = vec![];
         for (i, a) in self.agents[change.next].iter().enumerate() {
-            if score_diff >= INF as f64 {
+            if score_diff >= INF {
                 break;
             }
             if let Some(reconnection) =
                 a.estimate_remove_edge(change.edge_index, &graph, &state.when)
             {
-                score_diff += reconnection.score_diff as f64;
+                score_diff += reconnection.score_diff;
                 reconnections.push((change.next, i, reconnection));
             }
         }
         for (i, a) in self.agents[change.prev].iter().enumerate() {
-            if score_diff >= INF as f64 {
+            if score_diff >= INF {
                 break;
             }
             if let Some(reconnection) = a.estimate_add_edge(change.edge_index, &graph, &state.when)
             {
-                score_diff += reconnection.score_diff as f64;
+                score_diff += reconnection.score_diff;
                 reconnections.push((change.prev, i, reconnection));
             }
         }
