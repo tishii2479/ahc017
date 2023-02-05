@@ -85,8 +85,7 @@ impl VecSum {
     }
 
     pub fn set(&mut self, idx: usize, value: i64) {
-        self.sum -= self.vec[idx];
+        self.sum += value - self.vec[idx];
         self.vec[idx] = value;
-        self.sum += self.vec[idx];
     }
 }
