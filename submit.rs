@@ -219,7 +219,7 @@ pub mod solver {
     pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limit: f64) {
         const AGENT_N: usize = 8;
         const LOOP_INTERVAL: usize = 1000;
-        const UPDATE_INTERVAL: f64 = 0.0501;
+        const UPDATE_INTERVAL: f64 = 0.0401;
 
         let mut annealing_state = AnnealingState::new(&graph, &input, &state, AGENT_N);
 
@@ -274,9 +274,6 @@ pub mod solver {
                 state.update_when(change.edge_index, change.prev);
             }
         }
-
-        eprintln!("[optimize_state] adopted_count: {}", adopted_count);
-        eprintln!("[optimize_state] iter_count:    {}", iter_count);
     }
 
     #[derive(Debug)]
@@ -295,7 +292,7 @@ pub mod solver {
             let mut ps = vec![graph.find_closest_point(&Pos { x: 500, y: 500 })];
             let a = rnd::nextf() * 2. * std::f64::consts::PI;
             for i in 0..n {
-                let r = rnd::gen_range(300, 500) as f64;
+                let r = rnd::gen_range(333, 500) as f64;
                 let d = i as f64 / n as f64 * 2. * std::f64::consts::PI + a;
                 let p = Pos {
                     x: (f64::cos(d) * r + 500.).round() as i64,
@@ -364,16 +361,6 @@ pub mod solver {
             for (day, agent_index, reconnection) in reconnections {
                 self.agents[*day][*agent_index].apply_reconnection(reconnection, graph);
             }
-        }
-
-        fn calc_score(&self) -> f64 {
-            let mut sum = 0;
-            for a in &self.agents {
-                for e in a {
-                    sum += e.dist.sum;
-                }
-            }
-            sum as f64
         }
     }
 
@@ -831,6 +818,4 @@ fn main() {
 
     let output = state.output();
     println!("{}", output);
-
-    eprintln!("Time elapsed = {}", time::elapsed_seconds());
 }
