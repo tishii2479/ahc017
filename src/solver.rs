@@ -20,16 +20,17 @@ pub fn create_random_initial_state(input: &Input) -> State {
 }
 
 pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limit: f64) {
-    let agent_n = 8;
-
-    let mut annealing_state = AnnealingState::new(&graph, &input, &state, agent_n);
-    let mut score_progress_file = File::create("out/optimize_state_score_progress.csv").unwrap();
-
+    const AGENT_N: usize = 8;
     const LOOP_INTERVAL: usize = 1000;
     const UPDATE_INTERVAL: f64 = 0.1001;
-    // input.nとnの大きさに従って決めた方が良さそう
-    let start_temp: f64 = agent_n as f64 * 1e6;
-    let end_temp: f64 = agent_n as f64 * 1e2;
+
+    let mut annealing_state = AnnealingState::new(&graph, &input, &state, AGENT_N);
+    let mut score_progress_file = File::create("out/optimize_state_score_progress.csv").unwrap();
+
+    let rank = (input.m as f64 / input.n as f64) * (input.d as f64).powf(0.35);
+
+    let start_temp: f64 = AGENT_N as f64 * 1e6;
+    let end_temp: f64 = AGENT_N as f64 * (if rank <= 6. { 1e3 } else { 1e2 });
     let mut iter_count = 0;
     let mut progress;
     let mut temp = 0.;
@@ -49,7 +50,11 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
             if progress > last_update {
                 // 定期的に基点を更新する
                 last_update += UPDATE_INTERVAL;
-                let agent_n = if progress >= 0.8 { 16 } else { 8 };
+                let agent_n = if progress >= 0.8 {
+                    AGENT_N * 2
+                } else {
+                    AGENT_N
+                };
                 annealing_state = AnnealingState::new(&graph, &input, &state, agent_n);
             }
         }
@@ -122,10 +127,11 @@ impl AnnealingState {
         let mut ps = vec![graph.find_closest_point(&Pos { x: 500, y: 500 })];
         let a = rnd::nextf() * 2. * std::f64::consts::PI;
         for i in 0..n {
+            let r = rnd::gen_range(300, 500) as f64;
             let d = i as f64 / n as f64 * 2. * std::f64::consts::PI + a;
             let p = Pos {
-                x: (f64::cos(d) * 1000. + 500.).round() as i64,
-                y: (f64::sin(d) * 1000. + 500.).round() as i64,
+                x: (f64::cos(d) * r + 500.).round() as i64,
+                y: (f64::sin(d) * r + 500.).round() as i64,
             };
             ps.push(graph.find_closest_point(&p));
         }
