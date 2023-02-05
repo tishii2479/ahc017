@@ -8,7 +8,7 @@ pub struct Edge {
     pub index: usize,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 pub struct EdgeData {
     pub v: usize,
     pub u: usize,

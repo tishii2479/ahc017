@@ -72,7 +72,7 @@ where
     return ret;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct VecSum {
     pub vec: Vec<i64>,
     pub sum: i64,

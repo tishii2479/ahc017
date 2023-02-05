@@ -10,7 +10,7 @@ pub struct Input {
     pub k: usize,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct State {
     pub when: Vec<usize>,
     pub repair_counts: Vec<usize>,
@@ -53,7 +53,7 @@ impl State {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 pub struct Pos {
     pub x: i64,
     pub y: i64,

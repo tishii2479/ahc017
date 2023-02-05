@@ -20,19 +20,22 @@ pub fn create_random_initial_state(input: &Input) -> State {
 }
 
 pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limit: f64) {
+    // let is_hard = (input.m as f64 / input.n as f64) * (input.d as f64).powf(0.35) < 5.;
+    // let agent_n = if is_hard { 8 } else { 10 };
     let agent_n = 8;
+
     let mut annealing_state = AnnealingState::new(&graph, &input, &state, agent_n);
     let mut score_progress_file = File::create("out/optimize_state_score_progress.csv").unwrap();
 
     const LOOP_INTERVAL: usize = 1000;
-    // TODO: 温度調整
+    const UPDATE_INTERVAL: f64 = 0.1001;
     // input.nとnの大きさに従って決めた方が良さそう
     let start_temp: f64 = agent_n as f64 * 1e6;
     let end_temp: f64 = agent_n as f64 * 1e2;
     let mut iter_count = 0;
     let mut progress;
     let mut temp = 0.;
-    let mut last_update = 1;
+    let mut last_update = UPDATE_INTERVAL;
     let start_time = time::elapsed_seconds();
 
     let mut adopted_count = 0;
@@ -45,9 +48,9 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
             if progress >= 1. {
                 break;
             }
-            if (progress * 10.) as i64 > last_update {
+            if progress > last_update {
                 // 定期的に基点を更新する
-                last_update = (progress * 10.) as i64;
+                last_update += UPDATE_INTERVAL;
                 annealing_state = AnnealingState::new(&graph, &input, &state, agent_n);
             }
         }
@@ -127,7 +130,7 @@ impl AnnealingState {
             };
             ps.push(graph.find_closest_point(&p));
         }
-        eprintln!("{:?}", ps);
+        // eprintln!("{:?}", ps);
 
         let mut agents = vec![];
         for day in 0..input.d {
@@ -272,7 +275,7 @@ impl Agent {
                     continue;
                 }
                 // 親には遡らない
-                if par_vertex(v, graph, &agent.par_edge) == e.to {
+                if agent.par_edge[v] == e.index {
                     continue;
                 }
                 // rootの子孫ではなく、繋がっていない頂点が隣接していれば繋げることができる
@@ -304,7 +307,7 @@ impl Agent {
                         best_reconnection.remove_edge = agent.par_edge[cur];
                         best_reconnection.edge_path = edge_path;
                     }
-                } else {
+                } else if agent.par_edge[e.to] == e.index {
                     // 子孫の頂点に探索を広げる
                     // 深さ3以上は探索しない
                     if depth == 2 {
@@ -390,7 +393,7 @@ impl Agent {
             remove_edge.u
         };
         let old_root = remove_edge.other_vertex(cur);
-        assert_eq!(self.par_edge[old_root], remove_edge.index);
+        // debug_assert_eq!(self.par_edge[old_root], remove_edge.index);
         let subtree_size = self.sz[old_root];
         while cur != self.start {
             self.sz[cur] -= subtree_size;
@@ -474,7 +477,7 @@ fn is_child_vertex(
     let mut v = v;
     while par_edge[v] != NA && v != par && dist[v] > dist[par] {
         // 親の頂点を取得する
-        v = graph.edges[par_edge[v]].u + graph.edges[par_edge[v]].v - v;
+        v = par_vertex(v, graph, par_edge);
     }
     v == par
 }
