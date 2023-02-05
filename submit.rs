@@ -177,12 +177,6 @@ pub mod graph {
             (dist, par_edge)
         }
 
-        #[allow(unused)]
-        pub fn calc_dist_sum_slow(&self, start: usize, when: &Vec<usize>, day: usize) -> i64 {
-            let (dist, _) = self.calc_dist(start, &when, day);
-            dist.sum
-        }
-
         pub fn find_closest_point(&self, anchor: &Pos) -> usize {
             let mut min_dist = self.pos[0].dist(&anchor);
             let mut min_point = 0;
@@ -232,8 +226,6 @@ pub mod solver {
         let mut last_update = UPDATE_INTERVAL;
         let start_time = time::elapsed_seconds();
 
-        let mut adopted_count = 0;
-
         loop {
             if iter_count % LOOP_INTERVAL == 0 {
                 progress = (time::elapsed_seconds() - start_time) / (time_limit - start_time);
@@ -268,7 +260,6 @@ pub mod solver {
 
             if adopt && is_valid {
                 // 採用
-                adopted_count += 1;
                 annealing_state.apply(&reconnections, &graph);
             } else {
                 state.update_when(change.edge_index, change.prev);
@@ -645,25 +636,6 @@ pub mod solver {
 
     fn par_vertex(v: usize, graph: &Graph, par_edge: &Vec<usize>) -> usize {
         graph.edges[par_edge[v]].other_vertex(v)
-    }
-
-    #[allow(unused)]
-    pub fn calc_actual_score_slow(input: &Input, graph: &Graph, state: &State, n: usize) -> i64 {
-        let mut fk_sum = 0.;
-        let mut base_dist_sum = 0;
-        for v in 0..n {
-            // 全ての辺が使える日で計算する
-            base_dist_sum += graph.calc_dist_sum_slow(v, &state.when, input.d);
-        }
-        for day in 0..input.d {
-            let mut dist_sum = 0;
-            for v in 0..n {
-                dist_sum += graph.calc_dist_sum_slow(v, &state.when, day);
-            }
-            let fk = (dist_sum - base_dist_sum) as f64 / (n * (input.n - 1)) as f64;
-            fk_sum += fk;
-        }
-        (1e3 * (fk_sum / input.d as f64)).round() as i64
     }
 
     fn select_next(edge_index: usize, graph: &Graph, when: &Vec<usize>, d: usize) -> usize {
