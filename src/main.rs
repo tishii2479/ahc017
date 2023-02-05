@@ -26,7 +26,7 @@ fn read_input() -> (Input, Graph) {
 
 fn main() {
     time::start_clock();
-    const TIME_LIMIT: f64 = 3.8;
+    const TIME_LIMIT: f64 = 5.8;
 
     let (input, graph) = read_input();
 
@@ -39,10 +39,5 @@ fn main() {
     let output = state.output();
     println!("{}", output);
 
-    eprintln!("{:?}", state.repair_counts);
     eprintln!("Time elapsed = {}", time::elapsed_seconds());
-    eprintln!(
-        "Score = {}",
-        calc_actual_score_slow(&input, &graph, &state, input.n)
-    );
 }
