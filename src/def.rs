@@ -14,11 +14,10 @@ pub struct Input {
 pub struct State {
     pub when: Vec<usize>,
     pub repair_counts: Vec<usize>,
-    pub score: f64,
 }
 
 impl State {
-    pub fn new(d: usize, when: Vec<usize>, score: f64) -> State {
+    pub fn new(d: usize, when: Vec<usize>) -> State {
         let mut repair_counts = vec![0; d];
         for i in &when {
             if *i == NA {
@@ -30,7 +29,6 @@ impl State {
         State {
             when,
             repair_counts,
-            score,
         }
     }
 

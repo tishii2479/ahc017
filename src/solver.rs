@@ -5,7 +5,7 @@ use crate::{
 };
 
 pub fn create_random_initial_state(input: &Input) -> State {
-    let mut state = State::new(input.d, vec![NA; input.m], 0.);
+    let mut state = State::new(input.d, vec![NA; input.m]);
     for i in 0..input.m {
         let mut day = rnd::gen_range(0, input.d);
         while state.repair_counts[day] >= input.k {
@@ -63,8 +63,7 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
         let (score_diff, reconnections) = annealing_state.estimate(&change, state, &graph);
 
         let is_valid = *state.repair_counts.iter().max().unwrap() <= input.k;
-        let new_score = state.score + score_diff;
-        let adopt = (-(new_score - state.score) / temp).exp() > rnd::nextf();
+        let adopt = (-score_diff / temp).exp() > rnd::nextf();
 
         if adopt && is_valid {
             // 採用
