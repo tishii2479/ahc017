@@ -4,9 +4,6 @@ use crate::{
     util::{rnd, time, VecSum},
 };
 
-use std::fs::File;
-use std::io::Write;
-
 pub fn create_random_initial_state(input: &Input) -> State {
     let mut state = State::new(input.d, vec![NA; input.m], 0.);
     for i in 0..input.m {
@@ -22,13 +19,11 @@ pub fn create_random_initial_state(input: &Input) -> State {
 pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limit: f64) {
     const AGENT_N: usize = 8;
     const LOOP_INTERVAL: usize = 1000;
-    const UPDATE_INTERVAL: f64 = 0.1001;
+    const UPDATE_INTERVAL: f64 = 0.2001;
 
     let mut annealing_state = AnnealingState::new(&graph, &input, &state, AGENT_N);
-    let mut score_progress_file = File::create("out/optimize_state_score_progress.csv").unwrap();
 
     let rank = (input.m as f64 / input.n as f64) * (input.d as f64).powf(0.35);
-
     let start_temp: f64 = AGENT_N as f64 * 1e6;
     let end_temp: f64 = AGENT_N as f64 * (if rank <= 6. { 1e3 } else { 1e2 });
     let mut iter_count = 0;
@@ -77,33 +72,6 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
             annealing_state.apply(&reconnections, &graph);
         } else {
             state.update_when(change.edge_index, change.prev);
-        }
-
-        if iter_count % LOOP_INTERVAL == 0 {
-            if false {
-                // let actual_score = calc_actual_score_slow(&input, &graph, &state, 50);
-                let actual_score = -1;
-                writeln!(
-                    score_progress_file,
-                    "{},{:.2},{}",
-                    annealing_state.calc_score(),
-                    time::elapsed_seconds(),
-                    actual_score,
-                )
-                .unwrap();
-                eprintln!(
-                    "[{:.2}] {} {}",
-                    time::elapsed_seconds(),
-                    annealing_state.calc_score(),
-                    actual_score,
-                );
-            } else {
-                eprintln!(
-                    "[{:.2}] {}",
-                    time::elapsed_seconds(),
-                    annealing_state.calc_score()
-                );
-            }
         }
     }
 
