@@ -20,8 +20,6 @@ pub fn create_random_initial_state(input: &Input) -> State {
 }
 
 pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limit: f64) {
-    // let is_hard = (input.m as f64 / input.n as f64) * (input.d as f64).powf(0.35) < 5.;
-    // let agent_n = if is_hard { 8 } else { 10 };
     let agent_n = 8;
 
     let mut annealing_state = AnnealingState::new(&graph, &input, &state, agent_n);
@@ -51,6 +49,7 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
             if progress > last_update {
                 // 定期的に基点を更新する
                 last_update += UPDATE_INTERVAL;
+                let agent_n = if progress >= 0.8 { 16 } else { 8 };
                 annealing_state = AnnealingState::new(&graph, &input, &state, agent_n);
             }
         }
@@ -130,7 +129,6 @@ impl AnnealingState {
             };
             ps.push(graph.find_closest_point(&p));
         }
-        // eprintln!("{:?}", ps);
 
         let mut agents = vec![];
         for day in 0..input.d {
@@ -223,7 +221,7 @@ struct Agent {
 
 impl Agent {
     fn new(start: usize, graph: &Graph, when: &Vec<usize>, day: usize) -> Agent {
-        let (dist, par_edge) = graph.dijkstra(start, when, day);
+        let (dist, par_edge) = graph.calc_dist(start, when, day);
         let sz = calc_subtree_size(start, graph, &par_edge);
         Agent {
             start,

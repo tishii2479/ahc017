@@ -77,5 +77,5 @@ def run(case_num: int):
 
 
 if __name__ == "__main__":
-    df = run(100)
+    df = run(1000)
     print(df.groupby("rank").score.mean().map(int))

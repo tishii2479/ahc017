@@ -67,7 +67,7 @@ impl Graph {
         Graph { n, adj, pos, edges }
     }
 
-    pub fn dijkstra(&self, start: usize, when: &Vec<usize>, day: usize) -> (VecSum, Vec<usize>) {
+    pub fn calc_dist(&self, start: usize, when: &Vec<usize>, day: usize) -> (VecSum, Vec<usize>) {
         let mut dist = VecSum::new(vec![INF; self.n]);
         let mut par_edge = vec![NA; self.n];
         let mut q = VecDeque::new();
@@ -103,7 +103,7 @@ impl Graph {
 
     #[allow(unused)]
     pub fn calc_dist_sum_slow(&self, start: usize, when: &Vec<usize>, day: usize) -> i64 {
-        let (dist, _) = self.dijkstra(start, &when, day);
+        let (dist, _) = self.calc_dist(start, &when, day);
         dist.sum
     }
 
