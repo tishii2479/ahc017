@@ -53,18 +53,10 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
         }
         iter_count += 1;
 
-        let edge_index = rnd::gen_range(0, input.m);
-        let prev = state.when[edge_index];
-        let next = select_next(edge_index, &graph, &state.when, input.d);
-        if prev == next {
+        let change = annealing_state.suggest_change(&input, &graph, &state.when);
+        if change.prev == change.next {
             continue;
         }
-
-        let change = Change {
-            prev,
-            next,
-            edge_index,
-        };
         state.update_when(change.edge_index, change.next);
         let (score_diff, reconnections) = annealing_state.estimate(&change, state, &graph);
 
@@ -112,6 +104,7 @@ pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limi
     eprintln!("[optimize_state] iter_count:    {}", iter_count);
 }
 
+#[derive(Debug)]
 struct Change {
     prev: usize,
     next: usize,
@@ -132,9 +125,9 @@ impl AnnealingState {
                 x: (f64::cos(d) * 1000. + 500.).round() as i64,
                 y: (f64::sin(d) * 1000. + 500.).round() as i64,
             };
-            eprintln!("{:?}", p);
             ps.push(graph.find_closest_point(&p));
         }
+        eprintln!("{:?}", ps);
 
         let mut agents = vec![];
         for day in 0..input.d {
@@ -146,6 +139,17 @@ impl AnnealingState {
             agents.push(a);
         }
         AnnealingState { agents }
+    }
+
+    fn suggest_change(&self, input: &Input, graph: &Graph, when: &Vec<usize>) -> Change {
+        let edge_index = rnd::gen_range(0, input.m);
+        let prev = when[edge_index];
+        let next = select_next(edge_index, &graph, &when, input.d);
+        return Change {
+            prev,
+            next,
+            edge_index,
+        };
     }
 
     fn estimate(
@@ -499,19 +503,25 @@ pub fn calc_actual_score_slow(input: &Input, graph: &Graph, state: &State, n: us
 }
 
 fn select_next(edge_index: usize, graph: &Graph, when: &Vec<usize>, d: usize) -> usize {
-    if rnd::nextf() < 0.8 {
-        // 頂点に繋がっている工事を伸ばす
-        let edge = &graph.edges[edge_index];
-        let s = rnd::gen_range(0, graph.adj[edge.u].len() + graph.adj[edge.v].len());
-        let e = if s >= graph.adj[edge.u].len() {
-            graph.adj[edge.v][s - graph.adj[edge.u].len()].index
+    loop {
+        let next = if rnd::nextf() < 0.8 {
+            // 頂点に繋がっている工事を伸ばす
+            let edge = &graph.edges[edge_index];
+            let s = rnd::gen_range(0, graph.adj[edge.u].len() + graph.adj[edge.v].len());
+            let e = if s >= graph.adj[edge.u].len() {
+                graph.adj[edge.v][s - graph.adj[edge.u].len()].index
+            } else {
+                graph.adj[edge.u][s].index
+            };
+            when[e]
         } else {
-            graph.adj[edge.u][s].index
+            // ランダムに選ぶ
+            rnd::gen_range(0, d)
         };
-        when[e]
-    } else {
-        // ランダムに選ぶ
-        rnd::gen_range(0, d)
+        if next == when[edge_index] {
+            continue;
+        }
+        return next;
     }
 }
 
