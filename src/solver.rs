@@ -19,7 +19,7 @@ pub fn create_random_initial_state(input: &Input) -> State {
 pub fn optimize_state(state: &mut State, input: &Input, graph: &Graph, time_limit: f64) {
     const AGENT_N: usize = 8;
     const LOOP_INTERVAL: usize = 1000;
-    const UPDATE_INTERVAL: f64 = 0.2001;
+    const UPDATE_INTERVAL: f64 = 0.0501;
 
     let mut annealing_state = AnnealingState::new(&graph, &input, &state, AGENT_N);
 
